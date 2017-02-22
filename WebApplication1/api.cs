@@ -13,9 +13,17 @@ namespace JDApi
 		}
 	}
 
+	public class AC_ApiLog : AccessControl
+	{
+	}
+
 	public class AC_Ordr : AccessControl
 	{
-		protected new List<string> allowedAc = new List<string>() { "get", "query" };
+		private List<string> allowedAc_ = new List<string>() { "get", "query", "add", "set" };
+		protected override List<string> allowedAc
+		{
+			get { return allowedAc_; }
+		}
 
 		public object api_cancel()
 		{
