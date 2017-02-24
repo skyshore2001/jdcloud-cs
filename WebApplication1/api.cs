@@ -19,10 +19,9 @@ namespace JDApi
 
 	public class AC_Ordr : AccessControl
 	{
-		private List<string> allowedAc_ = new List<string>() { "get", "query", "add", "set" };
-		protected override List<string> allowedAc
+		public AC_Ordr()
 		{
-			get { return allowedAc_; }
+			allowedAc = new List<string>() { "get", "query", "add", "set" };
 		}
 
 		public object api_cancel()

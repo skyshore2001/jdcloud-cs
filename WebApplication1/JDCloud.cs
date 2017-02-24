@@ -10,8 +10,36 @@ using System.Data;
 using System.Collections.Specialized;
 using System.Text;
 
+/*
+using JsObject = System.Collections.Generic.Dictionary<string, object>;
+using JsArray = System.Collections.Generic.List<object>;
+using ValueTable = System.Collections.Generic.List<JsArray>;
+using ObjectTable = System.Collections.Generic.List<JsObject>;
+*/
+
 namespace JDCloud
 {
+	public class JsObject : Dictionary<string, object>
+	{
+		public JsObject() { }
+	}
+
+	public class JsArray : List<object>
+	{
+		public JsArray() { }
+		public JsArray(IEnumerable<object> collection) : base(collection) { }
+	}
+
+	/*
+	class ValueTable : List<JsArray>
+	{
+	}
+
+	class ObjectTable : List<JsObject>
+	{
+	}
+	*/
+
 	public class DirectReturn : Exception
 	{
 	}
@@ -38,6 +66,8 @@ namespace JDCloud
 		public const int E_DB = 3;
 		public const int E_SERVER = 4;
 		public const int E_FORBIDDEN = 5;
+
+		public const int PAGE_SZ_LIMIT = 10000;
 
 		public static Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
 			{ E_AUTHFAIL, "认证失败" },
@@ -106,26 +136,26 @@ namespace JDCloud
 			object ret = null;
 			if (assoc)
 			{
-				var dict = new Dictionary<string, object>();
+				var jsobj = new JsObject();
 				for (int i = 0; i < rd.FieldCount; ++i)
 				{
-					dict.Add(rd.GetName(i), rd.GetValue(i));
+					jsobj[rd.GetName(i)] = rd.GetValue(i);
 				}
-				ret = dict;
+				ret = jsobj;
 			}
 			else
 			{
 				object[] arr = null;
 				rd.GetValues(arr);
-				ret = arr;
+				ret = new JsArray(arr);
 			}
 			return ret;
 		}
 
-		public object queryAll(string sql, bool assoc)
+		public JsArray queryAll(string sql, bool assoc)
 		{
 			DbDataReader rd = cnn.ExecQuery(sql);
-			var ret = new List<object>();
+			var ret = new JsArray();
 			if (rd.HasRows)
 			{
 				while (true)
@@ -139,6 +169,7 @@ namespace JDCloud
 			return ret;
 		}
 
+		// can cast to JsObject or JsArray
 		public object queryOne(string sql, bool assoc = false)
 		{
 			DbDataReader rd = cnn.ExecQuery(sql);
@@ -181,14 +212,76 @@ namespace JDCloud
 		}
 	}
 
+	public struct VcolDef
+	{
+		public List<string> res;
+		public string join;
+		public bool default_;
+	}
+	public struct SubobjDef
+	{
+		public string sql;
+		public bool wantOne;
+		public bool default_;
+	}
+	struct SqlConf
+	{
+		public List<string> cond;
+		public List<string> res;
+		public List<string> join;
+		public string orderby;
+		public List<string> gres;
+		public List<string> subobj;
+		public string distinct;
+		public string union;
+	}
+	struct Vcol
+	{
+		public string def, def0;
+		public int vcolDefIdx; // TODO = -1;
+		public bool added;
+	}
+
 	public class AccessControl : JDApiBase
 	{
 		public static List<string> stdAc = new List<string>() { "add", "get", "set", "del", "query" };
-		protected virtual List<string> allowedAc { get; set; }
+		protected List<string> allowedAc;
 		protected string ac;
 		protected string table;
 
+		// 在add后自动设置; 在get/set/del操作调用onValidateId后设置。
 		protected object id;
+
+		// for add/set
+		protected List<string> readonlyFields;
+		// for set
+		protected List<string> readonlyFields2;
+		// for add/set
+		protected List<string> requiredFields;
+		// for set
+		protected List<string> requiredFields2;
+		// for get/query
+		protected List<string> hiddenFields;
+		// for query
+		protected string defaultRes; // 缺省为 "t0.*" 加  default=true的虚拟字段
+		protected string defaultSort = "t0.id";
+		// for query
+		protected int maxPageSz = 100;
+
+		// for get/query
+		// virtual columns definition
+		protected List<VcolDef> vcolDefs; // elem: {res, join, default?=false}
+		protected Dictionary<string, SubobjDef> subobj; // elem: { name => {sql, wantOne, default_}}
+
+		// TODO: 回调函数集。在after中执行（在onAfter回调之后）。
+		// protected onAfterActions = [];
+
+		// for get/query
+		// 注意：sqlConf["res"/"cond"][0]分别是传入的res/cond参数, sqlConf["orderby"]是传入的orderby参数, 为空(注意用isset/is_null判断)均表示未传值。
+		private SqlConf sqlConf; // {@cond, @res, @join, orderby, @subobj, @gres}
+
+		// virtual columns
+		private Dictionary<string, Vcol> vcolMap; // elem: vcol => {def, def0, added?, vcolDefIdx?=-1}
 
 		public void init(string table, string ac)
 		{
@@ -249,15 +342,21 @@ namespace JDCloud
 			foreach ($this->hiddenFields as $field) {
 				unset($rowData[$field]);
 			}
-			if (isset($rowData["pwd"]))
+			if ($rowData["pwd"] != null)
 				$rowData["pwd"] = "****";
 			flag_handleResult($rowData);
 			*/
 			this.onHandleRow(ref rowData);
 		}
 		
+		private bool afterIsCalled = false;
 		public virtual void after(ref object ret)
 		{
+			// 确保只调用一次
+			if (afterIsCalled)
+				return;
+			afterIsCalled = true;
+
 			if (ac == "get") {
 				this.handleRow(ref ret);
 			}
@@ -408,7 +507,7 @@ namespace JDCloud
 		public object api_get()
 		{
 			/*
-			if (! isset($sqlConf["res"][0]))
+			if (! $sqlConf["res"][0] != null)
 				$sqlConf["res"][0] = "t0.*";
 			else if ($sqlConf["res"][0] == "")
 				array_shift($sqlConf["res"]);
@@ -429,189 +528,183 @@ namespace JDCloud
 
 		public object api_query()
 		{
-		/*
-			//object wantArray = param("wantArray/b");
-			//$sqlConf = $accessCtl->sqlConf;
-			
-			bool enablePaging = !forGet;
-			if (forGet)
-			{
-				id = mparam("id");
-				array_unshift($sqlConf["cond"], "t0.id=$id");
-			}
-			else {
-				$pagesz = param("_pagesz/i");
-				$pagekey = param("_pagekey/i");
-				// support jquery-easyui
-				if (!isset($pagesz) && !isset($pagekey)) {
-					$pagesz = param("rows/i");
-					$pagekey = param("page/i");
-					if (isset($pagekey))
-					{
-						$enableTotalCnt = true;
-						$enablePartialQuery = false;
-					}
-				}
-				if ($pagesz == 0)
-					$pagesz = 20;
+			object pagesz = param("_pagesz/i");
+			object pagekey = param("_pagekey/i");
+			bool enableTotalCnt = false;
+			bool enablePartialQuery = false;
 
-				$maxPageSz = min($accessCtl->getMaxPageSz(), PAGE_SZ_LIMIT);
-				if ($pagesz < 0 || $pagesz > $maxPageSz)
-					$pagesz = $maxPageSz;
-
-				if (isset($sqlConf["gres"])) {
-					$enablePartialQuery = false;
+			// support jquery-easyui
+			if (pagesz == null && pagekey == null) {
+				pagesz = param("rows/i");
+				pagekey = param("page/i");
+				if (pagekey != null)
+				{
+					enableTotalCnt = true;
+					enablePartialQuery = false;
 				}
 			}
+			int pagesz_i = Convert.ToInt32(pagesz);
+			if (pagesz_i == 0)
+				pagesz_i = 20;
 
-			$orderSql = $sqlConf["orderby"];
+			int maxPageSz = Math.Min(this.maxPageSz, PAGE_SZ_LIMIT);
+			if (pagesz_i < 0 || pagesz_i > maxPageSz)
+				pagesz_i = maxPageSz;
+
+			if (sqlConf.gres != null) {
+				enablePartialQuery = false;
+			}
+
+			string orderSql = sqlConf.orderby;
 
 			// setup cond for partialQuery
-			if ($enablePaging) {
-				if ($orderSql == null)
-					$orderSql = $accessCtl->getDefaultSort();
+			if (orderSql == null)
+				orderSql = defaultSort;
 
-				if (!isset($enableTotalCnt))
-				{
-					$enableTotalCnt = false;
-					if ($pagekey == 0)
-						$enableTotalCnt = true;
-				}
-
-				// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), _pagekey表示该字段的最后值；否则_pagekey表示下一页页码。
-				if (!isset($enablePartialQuery)) {
-					$enablePartialQuery = false;
-					if (preg_match('/^(t0\.)?id\b/', $orderSql)) {
-						$enablePartialQuery = true;
-						if ($pagekey) {
-							if (preg_match('/\bid DESC/i', $orderSql)) {
-								$partialQueryCond = "t0.id<$pagekey";
-							}
-							else {
-								$partialQueryCond = "t0.id>$pagekey";
-							}
-							// setup res for partialQuery
-							if ($partialQueryCond) {
-	// 							if (isset($sqlConf["res"][0]) && !preg_match('/\bid\b/',$sqlConf["res"][0])) {
-	// 								array_unshift($sqlConf["res"], "t0.id");
-	// 							}
-								array_unshift($sqlConf["cond"], $partialQueryCond);
-							}
-						}
-					}
-				}
-				if (! $pagekey)
-					$pagekey = 1;
-			}
-
-			if (! isset($sqlConf["res"][0]))
-				$sqlConf["res"][0] = "t0.*";
-			else if ($sqlConf["res"][0] == "")
-				array_shift($sqlConf["res"]);
-			$resSql = join(",", $sqlConf["res"]);
-			if ($resSql == "") {
-				$resSql = "t0.id";
-			}
-			if (@$sqlConf["distinct"]) {
-				$resSql = "DISTINCT {$resSql}";
-			}
-
-			$tblSql = "$tbl t0";
-			if (count($sqlConf["join"]) > 0)
-				$tblSql .= "\n" . join("\n", $sqlConf["join"]);
-			$condSql = "";
-			foreach ($sqlConf["cond"] as $cond) {
-				if ($cond == null)
-					continue;
-				if (strlen($condSql) > 0)
-					$condSql .= " AND ";
-				if (stripos($cond, " and ") !== false || stripos($cond, " or ") !== false)
-					$condSql .= "({$cond})";
-				else 
-					$condSql .= $cond;
-			}
-			$sql = "SELECT $resSql FROM $tblSql";
-			if ($condSql)
+			if (enableTotalCnt == false && pagekey != null && (int)pagekey == 0)
 			{
-				flag_handleCond($condSql);
-				$sql .= "\nWHERE $condSql";
-			}
-			if (isset($sqlConf["union"])) {
-				$sql .= "\nUNION\n" . $sqlConf["union"];
-			}
-			if ($sqlConf["gres"]) {
-				$sql .= "\nGROUP BY {$sqlConf['gres']}";
+				enableTotalCnt = true;
 			}
 
-			if ($orderSql)
-				$sql .= "\nORDER BY " . $orderSql;
-
-			if ($enablePaging) {
-				if ($enableTotalCnt) {
-					$cntSql = "SELECT COUNT(*) FROM $tblSql";
-					if ($condSql)
-						$cntSql .= "\nWHERE $condSql";
-					$totalCnt = queryOne($cntSql);
-				}
-
-				if ($enablePartialQuery) {
-					$sql .= "\nLIMIT " . $pagesz;
-				}
-				else {
-					$sql .= "\nLIMIT " . ($pagekey-1)*$pagesz . "," . $pagesz;
-				}
-			}
-			else {
-				if ($pagesz) {
-					$sql .= "\nLIMIT " . $pagesz;
-				}
-			}
-
-			if ($forGet) {
-				$ret = queryOne($sql, PDO::FETCH_ASSOC);
-				if ($ret == false) 
-					throw new MyException(E_PARAM, "not found `$tbl.id`=`$id`");
-				handleSubObj($sqlConf["subobj"], $id, $ret);
-			}
-			else {
-				$ret = queryAll($sql, PDO::FETCH_ASSOC);
-				if ($ret == false)
-					$ret = [];
-
-				if ($wantArray) {
-					foreach ($ret as &$mainObj) {
-						$id1 = $mainObj["id"];
-						handleSubObj($sqlConf["subobj"], $id1, $mainObj);
-					}
-				}
-				else {
-					// Note: colCnt may be changed in after().
-					$fixedColCnt = count($ret)==0? 0: count($ret[0]);
-					$accessCtl->after($ret);
-					$ignoreAfter = true;
-
-					if ($enablePaging && $pagesz == count($ret)) { // 还有下一页数据, 添加nextkey
-						if ($enablePartialQuery) {
-							$nextkey = $ret[count($ret)-1]["id"];
+			// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), _pagekey表示该字段的最后值；否则_pagekey表示下一页页码。
+			string partialQueryCond;
+			if (! enablePartialQuery) {
+				if (Regex.IsMatch(orderSql, @"^(t0\.)?id\b")) {
+					enablePartialQuery = true;
+					if (pagekey!= null && (int)pagekey != 0) {
+						if (Regex.IsMatch(orderSql, @"\bid DESC", RegexOptions.IgnoreCase)) {
+							partialQueryCond = "t0.id<" + pagekey;
 						}
 						else {
-							$nextkey = $pagekey + 1;
+							partialQueryCond = "t0.id>" + pagekey;
+						}
+						// setup res for partialQuery
+						if (partialQueryCond != null) {
+// 							if (sqlConf["res"][0] != null && !preg_match('/\bid\b/',sqlConf["res"][0])) {
+// 								array_unshift(sqlConf["res"], "t0.id");
+// 							}
+							sqlConf.cond.Insert(0, partialQueryCond);
 						}
 					}
-					$ret = objarr2table($ret, $fixedColCnt);
-					if (isset($nextkey)) {
-						$ret["nextkey"] = $nextkey;
-					}
-					if (isset($totalCnt)) {
-						$ret["total"] = $totalCnt;
-					}
-
-					handleFormat($ret, $tbl);
 				}
 			}
+			if (pagekey == null)
+				pagekey = 1;
+
+			if (sqlConf.res[0] == null)
+				sqlConf.res[0] = "t0.*";
+			else if (sqlConf.res[0] == "")
+				sqlConf.res.RemoveAt(0);
+
+			string resSql = string.Join(",", sqlConf.res);
+			if (resSql == "") {
+				resSql = "t0.id";
+			}
+			if (sqlConf.distinct != null) {
+				resSql = "DISTINCT " + resSql;
+			}
+
+			string tblSql = table + " t0";
+			if (sqlConf.join.Count > 0)
+				tblSql += "\n" + string.Join("\n", sqlConf.join);
+
+			string condSql = "";
+			foreach (string cond in sqlConf.cond) {
+				if (cond == null)
+					continue;
+				if (condSql.Length > 0)
+					condSql += " AND ";
+				if (cond.IndexOf(" and ", StringComparison.OrdinalIgnoreCase) > 0 || cond.IndexOf(" or ", StringComparison.OrdinalIgnoreCase) > 0)
+					condSql += "({cond})";
+				else 
+					condSql += cond;
+			}
+			StringBuilder sql = new StringBuilder();
+			sql.AppendFormat("SELECT {0} FROM {1}", resSql, tblSql);
+			if (condSql.Length > 0)
+			{
+				// TODO: flag_handleCond(condSql);
+				sql.Append("\nWHERE condSql");
+			}
+			if (sqlConf.union != null) {
+				sql.Append("\nUNION\n").Append(sqlConf.union);
+			}
+			if (sqlConf.gres != null) {
+				sql.AppendFormat("\nGROUP BY {0}", sqlConf.gres);
+			}
+
+			object totalCnt = null;
+			if (orderSql != null) {
+				sql.AppendFormat("\nORDER BY {0}", orderSql);
+
+				if (enableTotalCnt) {
+					string cntSql = "SELECT COUNT(*) FROM tblSql";
+					if (condSql != null)
+						cntSql += "\nWHERE condSql";
+					totalCnt = queryOne(cntSql);
+				}
+
+				if (enablePartialQuery) {
+					sql.AppendFormat("\nLIMIT {0}", pagesz_i);
+				}
+				else {
+					sql.AppendFormat("\nLIMIT {0},{1}", ((int)pagekey-1)*pagesz_i, pagesz_i);
+				}
+			}
+
+		/*
+			if (forGet) {
+				ret = queryOne(sql, PDO::FETCH_ASSOC);
+				if (ret == false) 
+					throw new MyException(E_PARAM, "not found `tbl.id`=`id`");
+				handleSubObj(sqlConf["subobj"], id, ret);
+			}
+		*/
+			var retArr = queryAll(sql.ToString(), true);
+			object reto = retArr;
+
+			// Note: colCnt may be changed in after().
+			int fixedColCnt = retArr.Count()==0? 0: (retArr[0] as JsArray).Count();
+			this.after(ref reto);
+
+			object nextkey = null;
+			if (pagesz_i == retArr.Count) { // 还有下一页数据, 添加nextkey
+				if (enablePartialQuery) {
+					nextkey = (retArr.Last() as JsObject)["id"];
+				}
+				else {
+					nextkey = (int)pagekey + 1;
+				}
+			}
+			//TODO: ret = objarr2table(ret, fixedColCnt);
+			foreach (var mainObj in retArr) {
+				var id1 = (mainObj as JsObject)["id"];
+				/* TODO
+				if (id1 != null)
+					handleSubObj(sqlConf.subobj, id1, mainObj);
+				*/
+			}
+			object fmt = param("_fmt");
+			JsObject ret = null;
+			if ((string)fmt == "list") {
+				ret = new JsObject() { { "list", ret } };
+			}
+			else {
+				//TODO
+				//ret = objarr2table(ret, fixedColCnt);
+			}
+			if (nextkey != null) {
+				ret["nextkey"] = nextkey;
+			}
+			if (totalCnt != null) {
+				ret["total"] = totalCnt;
+			}
+			/* TODO
+			if (fmt != null)
+				handleExportFormat($fmt, $ret, $tbl);
 			*/
 
-			return new Dictionary<string, object>();
+			return ret;
 		}
 	}
 
