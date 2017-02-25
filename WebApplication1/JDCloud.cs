@@ -86,6 +86,7 @@ namespace JDCloud
 		}
 
 		public HttpContext ctx;
+		public NameValueCollection _GET, _POST;
 		
 		private SSTk.DbConn cnn_;
 		public SSTk.DbConn cnn
@@ -100,9 +101,9 @@ namespace JDCloud
 		{
 			string val = null;
 			if (from == 'a' || from == 'g')
-				val = ctx.Request.QueryString[name];
+				val = _GET[name];
 			if ((val == null && from == 'a') || from == 'p')
-				val = ctx.Request.Form[name];
+				val = _POST[name];
 			if (val == null && defVal != null)
 				val = defVal;
 			return val;
@@ -210,6 +211,9 @@ namespace JDCloud
 		public void addLog(string s, int level = 0)
 		{
 		}
+		public void logit(string s, string which = "trace")
+		{
+		}
 	}
 
 	public struct VcolDef
@@ -291,12 +295,120 @@ namespace JDCloud
 		public virtual void before()
 		{
 			if (this.allowedAc != null && stdAc.IndexOf(ac) >= 0 && this.allowedAc.IndexOf(ac) < 0)
-				throw new MyException(E_FORBIDDEN, "forbidden ac=`" + ac + "`");
+				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table);
 
 			if (ac == "get" || ac == "set" || ac == "del") {
 				this.onValidateId();
-				this.id = mparam("id");
+				this.id = (int)mparam("id");
 			}
+
+			// TODO: check fields in metadata
+			// foreach ($_POST as ($field, $val))
+
+			if (ac == "add" || ac == "set") {
+				foreach (var field in this.readonlyFields) {
+					if (_POST[field] != null) {
+						logit("!!! warn: attempt to chang readonly field `field`");
+						_POST.Remove(field);
+					}
+				}
+				if (ac == "set") {
+					foreach (var field in this.readonlyFields2) {
+						if (_POST[field] != null) {
+							logit("!!! warn: attempt to change readonly field `field`");
+							ctx.Request.Form.Remove(field);
+						}
+					}
+				}
+				if (ac == "add") {
+					foreach (var field in this.requiredFields) {
+	// 					if (! issetval(field, _POST))
+	// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
+						mparam(field, 'p'); // validate field and type; refer to field/type format for mparam.
+					}
+				}
+				else { // for set, the fields can not be set null
+					var arr = new List<string>(this.requiredFields);
+					arr.AddRange(this.requiredFields2);
+					foreach (var field in arr) {
+						/* 
+						if (is_array(field)) // TODO
+							continue;
+						*/
+						var v = _POST[field];
+						if (v != null && (v == "null" || v == "" || v =="empty" ) {
+							throw new MyException(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
+						}
+					}
+				}
+				this.onValidate();
+			}
+			else if (ac == "get" || ac == "query") {
+				string gres = param("gres") as string;
+				string res = param("res", 'a', this.defaultRes) as string;
+				sqlConf = new SqlConf() {
+					{"res",  new JsArray(res)},
+					{"gres", gres},
+					{"cond", new JsArray(k[param("cond")},
+					"join" => [],
+					"orderby" => param("orderby"),
+					"subobj" => [],
+					"union" => param("union"),
+					"distinct" => param("distinct")
+				};
+
+				this->initVColMap();
+
+				# support internal param res2/join/cond2
+				if ((res2 = param("res2")) != null) {
+					if (! is_array(res2))
+						throw new MyException(E_SERVER, "res2 should be an array: `res2`");
+					foreach (res2 as e)
+						this->addRes(e);
+				}
+				if ((join=param("join")) != null) {
+					this->addJoin(join);
+				}
+				if ((cond2 = param("cond2")) != null) {
+					if (! is_array(cond2))
+						throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
+					foreach (cond2 as e)
+						this->addCond(e);
+				}
+				if ((subobj = param("subobj")) != null) {
+					if (! is_array(subobj))
+						throw new MyException(E_SERVER, "subobj should be an array");
+					this->sqlConf["subobj"] = subobj;
+				}
+				this->fixUserQuery();
+
+				this->onQuery();
+
+				// 确保res/gres参数符合安全限定
+				if (isset(gres)) {
+					this->filterRes(gres);
+				}
+				if (isset(res)) {
+					this->filterRes(res, true);
+				}
+				else {
+					this->addDefaultVCols();
+					if (count(this->sqlConf["subobj"]) == 0) {
+						foreach (this->subobj as col => def) {
+							if (@def["default"])
+								this->sqlConf["subobj"][col] = def;
+						}
+					}
+				}
+				if (ac == "query")
+				{
+					rv = this->supportEasyuiSort();
+					if (isset(this->sqlConf["orderby"]) && !isset(this->sqlConf["union"]))
+						this->sqlConf["orderby"] = this->filterOrderby(this->sqlConf["orderby"]);
+				}
+			}
+		}
+
 			if (ac == "add" || ac == "set") {
 				/*
 				foreach ($this->readonlyFields as $field) {
@@ -427,7 +539,7 @@ namespace JDCloud
 
 			int id = execOne(sql, true);
 
-			object res = param("res");
+			string res = param("res") as string;
 			object ret = null;
 			if (res != null)
 			{
@@ -460,7 +572,6 @@ namespace JDCloud
 
 		public void api_set()
 		{
-			object id = mparam("id", 'g');
 			var kv = new StringBuilder();
 			var form = ctx.Request.Form;
 			foreach (string k in form)
@@ -497,7 +608,6 @@ namespace JDCloud
 
 		public void api_del()
 		{
-			object id = mparam("id");
 			string sql = string.Format("DELETE FROM {0} WHERE id={1}", table, id);
 			int cnt = execOne(sql);
 			if (cnt != 1)
@@ -528,28 +638,28 @@ namespace JDCloud
 
 		public object api_query()
 		{
-			object pagesz = param("_pagesz/i");
-			object pagekey = param("_pagekey/i");
+			object pagesz_o = param("_pagesz/i");
+			object pagekey_o = param("_pagekey/i");
 			bool enableTotalCnt = false;
 			bool enablePartialQuery = false;
 
+
 			// support jquery-easyui
-			if (pagesz == null && pagekey == null) {
-				pagesz = param("rows/i");
-				pagekey = param("page/i");
-				if (pagekey != null)
+			if (pagesz_o == null && pagekey_o == null) {
+				pagesz_o = param("rows/i");
+				pagekey_o = param("page/i");
+				if (pagekey_o != null)
 				{
 					enableTotalCnt = true;
 					enablePartialQuery = false;
 				}
 			}
-			int pagesz_i = Convert.ToInt32(pagesz);
-			if (pagesz_i == 0)
-				pagesz_i = 20;
-
+			int pagesz = Convert.ToInt32(pagesz_o);
+			if (pagesz == 0)
+				pagesz = 20;
 			int maxPageSz = Math.Min(this.maxPageSz, PAGE_SZ_LIMIT);
-			if (pagesz_i < 0 || pagesz_i > maxPageSz)
-				pagesz_i = maxPageSz;
+			if (pagesz < 0 || pagesz > maxPageSz)
+				pagesz = maxPageSz;
 
 			if (sqlConf.gres != null) {
 				enablePartialQuery = false;
@@ -561,7 +671,7 @@ namespace JDCloud
 			if (orderSql == null)
 				orderSql = defaultSort;
 
-			if (enableTotalCnt == false && pagekey != null && (int)pagekey == 0)
+			if (enableTotalCnt == false && pagekey_o != null && (int)pagekey_o == 0)
 			{
 				enableTotalCnt = true;
 			}
@@ -571,12 +681,12 @@ namespace JDCloud
 			if (! enablePartialQuery) {
 				if (Regex.IsMatch(orderSql, @"^(t0\.)?id\b")) {
 					enablePartialQuery = true;
-					if (pagekey!= null && (int)pagekey != 0) {
+					if (pagekey_o!= null && (int)pagekey_o != 0) {
 						if (Regex.IsMatch(orderSql, @"\bid DESC", RegexOptions.IgnoreCase)) {
-							partialQueryCond = "t0.id<" + pagekey;
+							partialQueryCond = "t0.id<" + pagekey_o;
 						}
 						else {
-							partialQueryCond = "t0.id>" + pagekey;
+							partialQueryCond = "t0.id>" + pagekey_o;
 						}
 						// setup res for partialQuery
 						if (partialQueryCond != null) {
@@ -588,8 +698,8 @@ namespace JDCloud
 					}
 				}
 			}
-			if (pagekey == null)
-				pagekey = 1;
+			if (pagekey_o == null)
+				pagekey_o = 1;
 
 			if (sqlConf.res[0] == null)
 				sqlConf.res[0] = "t0.*";
@@ -645,10 +755,10 @@ namespace JDCloud
 				}
 
 				if (enablePartialQuery) {
-					sql.AppendFormat("\nLIMIT {0}", pagesz_i);
+					sql.AppendFormat("\nLIMIT {0}", pagesz);
 				}
 				else {
-					sql.AppendFormat("\nLIMIT {0},{1}", ((int)pagekey-1)*pagesz_i, pagesz_i);
+					sql.AppendFormat("\nLIMIT {0},{1}", ((int)pagekey_o-1)*pagesz, pagesz);
 				}
 			}
 
@@ -668,12 +778,12 @@ namespace JDCloud
 			this.after(ref reto);
 
 			object nextkey = null;
-			if (pagesz_i == retArr.Count) { // 还有下一页数据, 添加nextkey
+			if (pagesz == retArr.Count) { // 还有下一页数据, 添加nextkey
 				if (enablePartialQuery) {
-					nextkey = (retArr.Last() as JsObject)["id"];
+nextkey = (retArr.Last() as JsObject)["id"];
 				}
 				else {
-					nextkey = (int)pagekey + 1;
+					nextkey = (int)pagekey_o + 1;
 				}
 			}
 			//TODO: ret = objarr2table(ret, fixedColCnt);
@@ -684,7 +794,7 @@ namespace JDCloud
 					handleSubObj(sqlConf.subobj, id1, mainObj);
 				*/
 			}
-			object fmt = param("_fmt");
+			string fmt = param("_fmt") as string;
 			JsObject ret = null;
 			if ((string)fmt == "list") {
 				ret = new JsObject() { { "list", ret } };
@@ -796,7 +906,7 @@ namespace JDCloud
 			}
 
 			var ser = new JavaScriptSerializer();
-			ser.Serialize(ser);
+			//ser.Serialize(ser);
 			context.Response.ContentType = "text/plain";
 			context.Response.Write(ser.Serialize(ret));
 		}
