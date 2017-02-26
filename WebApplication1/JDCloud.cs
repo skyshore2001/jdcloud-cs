@@ -10,35 +10,15 @@ using System.Data;
 using System.Collections.Specialized;
 using System.Text;
 
-/*
-using JsObject = System.Collections.Generic.Dictionary<string, object>;
-using JsArray = System.Collections.Generic.List<object>;
-using ValueTable = System.Collections.Generic.List<JsArray>;
-using ObjectTable = System.Collections.Generic.List<JsObject>;
-*/
-
 namespace JDCloud
 {
 	public class JsObject : Dictionary<string, object>
 	{
-		public JsObject() { }
 	}
 
 	public class JsArray : List<object>
 	{
-		public JsArray() { }
-		public JsArray(IEnumerable<object> collection) : base(collection) { }
 	}
-
-	/*
-	class ValueTable : List<JsArray>
-	{
-	}
-
-	class ObjectTable : List<JsObject>
-	{
-	}
-	*/
 
 	public class DirectReturn : Exception
 	{
@@ -69,7 +49,7 @@ namespace JDCloud
 
 		public const int PAGE_SZ_LIMIT = 10000;
 
-		public static Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
+		public static readonly Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
 			{ E_AUTHFAIL, "认证失败" },
 			{ E_PARAM, "参数不正确" },
 			{ E_NOAUTH, "未登录" },
@@ -85,7 +65,7 @@ namespace JDCloud
 			return "未知错误";
 		}
 
-		public HttpContext ctx_;
+		private HttpContext ctx_;
 		public HttpContext ctx
 		{
 			get
@@ -111,9 +91,10 @@ namespace JDCloud
 			}
 		}
 
-		public object param(string name, char from = 'a', string defVal = null)
+		// TODO
+		public object param(string name, char from = 'a', object defVal = null)
 		{
-			string val = null;
+			object val = null;
 			if (from == 'a' || from == 'g')
 				val = _GET[name];
 			if ((val == null && from == 'a') || from == 'p')
@@ -146,6 +127,7 @@ namespace JDCloud
 			return "'" + s.Replace("'", "\\'") + "'";
 		}
 
+		// return: JsObject or JsArray
 		public object readerToCol(DbDataReader rd, bool assoc)
 		{
 			object ret = null;
@@ -162,12 +144,14 @@ namespace JDCloud
 			{
 				object[] arr = null;
 				rd.GetValues(arr);
-				ret = new JsArray(arr);
+				ret = new JsArray();
+				(ret as JsArray).AddRange(arr);
 			}
 			return ret;
 		}
 
-		public JsArray queryAll(string sql, bool assoc)
+		// 每一项是JsArray或JsObject(assoc=true)
+		public JsArray queryAll(string sql, bool assoc = false)
 		{
 			DbDataReader rd = cnn.ExecQuery(sql);
 			var ret = new JsArray();
@@ -211,6 +195,7 @@ namespace JDCloud
 			return ret;
 		}
 
+		// TODO: now just mysql; mssql uses "SELECT SCOPE_IDENTITY()" or "SELECT @@IDENTITY"
 		public int getLastInsertId()
 		{
 			object ret = cnn.ExecScalar("SELECT LAST_INSERT_ID()");
@@ -224,9 +209,11 @@ namespace JDCloud
 
 		public void addLog(string s, int level = 0)
 		{
+			//TODO
 		}
 		public void logit(string s, string which = "trace")
 		{
+			//TODO
 		}
 	}
 
@@ -246,33 +233,33 @@ namespace JDCloud
 		public bool isDefault;
 	}
 
-	struct SqlConf
+	class SqlConf
 	{
 		public List<string> cond;
 		public List<string> res;
 		public List<string> join;
 		public string orderby;
-		public List<string> gres;
+		public string gres;
 		public Dictionary<string, SubobjDef> subobj;
-		public string distinct;
+		public bool distinct;
 		public string union;
 	}
-	public class Vcol
+	class Vcol
 	{
 		public string def, def0;
-		public int vcolDefIdx; // TODO = -1;
+		public int vcolDefIdx = -1;
 		public bool added;
 	}
 
 	public class AccessControl : JDApiBase
 	{
-		public static List<string> stdAc = new List<string>() { "add", "get", "set", "del", "query" };
+		public static readonly List<string> stdAc = new List<string>() { "add", "get", "set", "del", "query" };
 		protected List<string> allowedAc;
 		protected string ac;
 		protected string table;
 
 		// 在add后自动设置; 在get/set/del操作调用onValidateId后设置。
-		protected object id;
+		protected int id;
 
 		// for add/set
 		protected List<string> readonlyFields;
@@ -299,7 +286,7 @@ namespace JDCloud
 		// protected onAfterActions = [];
 
 		// for get/query
-		// 注意：sqlConf["res"/"cond"][0]分别是传入的res/cond参数, sqlConf["orderby"]是传入的orderby参数, 为空(注意用isset/is_null判断)均表示未传值。
+		// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
 		private SqlConf sqlConf; // {@cond, @res, @join, orderby, @subobj, @gres}
 
 		// virtual columns
@@ -309,15 +296,19 @@ namespace JDCloud
 		{
 			this.table = table;
 			this.ac = ac;
+			this.onInit();
 		}
 
+		protected virtual void onInit()
+		{
+		}
 		protected virtual void onValidate()
 		{
 		}
 		protected virtual void onValidateId()
 		{
 		}
-		protected virtual void onHandleRow(ref JsObject rowData)
+		protected virtual void onHandleRow(JsObject rowData)
 		{
 		}
 		protected virtual void onAfter(ref object ret)
@@ -331,9 +322,9 @@ namespace JDCloud
 			return 0;
 		}
 
-		public virtual void before()
+		public void before()
 		{
-			if (this.allowedAc != null && stdAc.IndexOf(ac) >= 0 && this.allowedAc.IndexOf(ac) < 0)
+			if (this.allowedAc != null && stdAc.Contains(ac) && !this.allowedAc.Contains(ac))
 				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
 
 			if (ac == "get" || ac == "set" || ac == "del") {
@@ -345,30 +336,47 @@ namespace JDCloud
 			// foreach ($_POST as ($field, $val))
 
 			if (ac == "add" || ac == "set") {
-				foreach (var field in this.readonlyFields) {
-					if (_POST[field] != null) {
-						logit("!!! warn: attempt to chang readonly field `field`");
-						_POST.Remove(field);
+				if (this.readonlyFields != null)
+				{
+					foreach (var field in this.readonlyFields)
+					{
+						if (_POST[field] != null)
+						{
+							logit("!!! warn: attempt to chang readonly field `field`");
+							_POST.Remove(field);
+						}
 					}
 				}
 				if (ac == "set") {
-					foreach (var field in this.readonlyFields2) {
-						if (_POST[field] != null) {
-							logit("!!! warn: attempt to change readonly field `field`");
-							ctx.Request.Form.Remove(field);
+					if (this.readonlyFields2 != null)
+					{
+						foreach (var field in this.readonlyFields2)
+						{
+							if (_POST[field] != null)
+							{
+								logit("!!! warn: attempt to change readonly field `field`");
+								ctx.Request.Form.Remove(field);
+							}
 						}
 					}
 				}
 				if (ac == "add") {
-					foreach (var field in this.requiredFields) {
-	// 					if (! issetval(field, _POST))
-	// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
-						mparam(field, 'p'); // validate field and type; refer to field/type format for mparam.
+					if (this.requiredFields != null)
+					{
+						foreach (var field in this.requiredFields)
+						{
+							// 					if (! issetval(field, _POST))
+							// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
+							mparam(field, 'p'); // validate field and type; refer to field/type format for mparam.
+						}
 					}
 				}
 				else { // for set, the fields can not be set null
-					var arr = new List<string>(this.requiredFields);
-					arr.AddRange(this.requiredFields2);
+					var arr = new List<string>();
+					if (this.requiredFields != null)
+						arr.AddRange(this.requiredFields);
+					if (this.requiredFields2 != null)
+						arr.AddRange(this.requiredFields2);
 					foreach (var field in arr) {
 						/* 
 						if (is_array(field)) // TODO
@@ -387,18 +395,18 @@ namespace JDCloud
 				string res = param("res", 'a', this.defaultRes) as string;
 				sqlConf = new SqlConf() {
 					res = new List<string>{res},
-					gres = new List<string> {gres},
+					gres = gres,
 					cond = new List<string>{param("cond") as string},
 					join = new List<string>(),
 					orderby = param("orderby") as string,
 					subobj = new Dictionary<string, SubobjDef>(),
 					union = param("union") as string,
-					distinct = param("distinct") as string
+					distinct = (bool)param("distinct/b", 'a', false)
 				};
 
 				this.initVColMap();
 
-				/*
+				/* TODO
 				// support internal param res2/join/cond2
 				if ((res2 = param("res2")) != null) {
 					if (! is_array(res2))
@@ -422,7 +430,6 @@ namespace JDCloud
 				}
 				*/
 				this.fixUserQuery();
-
 				this.onQuery();
 
 				// 确保res/gres参数符合安全限定
@@ -434,7 +441,7 @@ namespace JDCloud
 				}
 				else {
 					this.addDefaultVCols();
-					if (this.sqlConf.subobj.Count == 0) {
+					if (this.sqlConf.subobj.Count == 0 && this.subobj != null) {
 						foreach (var kv in this.subobj) {
 							var col = kv.Key;
 							var def = kv.Value;
@@ -452,15 +459,19 @@ namespace JDCloud
 			}
 		}
 
-		private void handleRow(ref JsObject rowData)
+		private void handleRow(JsObject rowData)
 		{
-			foreach (var field in this.hiddenFields) {
-				rowData.Remove(field);
+			if (this.hiddenFields != null)
+			{
+				foreach (var field in this.hiddenFields)
+				{
+					rowData.Remove(field);
+				}
 			}
 			if (rowData.ContainsKey("pwd"))
 				rowData["pwd"] = "****";
 			// TODO: flag_handleResult(rowData);
-			this.onHandleRow(ref rowData);
+			this.onHandleRow(rowData);
 		}
 
 		// for query. "field1"=>"t0.field1"
@@ -509,13 +520,13 @@ namespace JDCloud
 				}
 				Match m;
 				// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1"
-				if (! (m=Regex.Match(col, @"^\s*(\w+)(?:\s+(?:AS\s+)?(\S+))?\s*", RegexOptions.IgnoreCase)).Success)
+				if (! (m=Regex.Match(col, @"^(\w+)(?:\s+(?:AS\s+)?(\S+))?$", RegexOptions.IgnoreCase)).Success)
 				{
 					// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
-					if (supportFn && (m=Regex.Match(col, @"(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)", RegexOptions.IgnoreCase)).Success) {
+					if (supportFn && (m=Regex.Match(col, @"^(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)$", RegexOptions.IgnoreCase)).Success) {
 						fn = m.Groups[1].Value.ToUpper();
 						if (fn != "COUNT" && fn != "SUM")
-							throw new MyException(E_FORBIDDEN, string.Format("void not allowed: `{0}`", fn));
+							throw new MyException(E_FORBIDDEN, string.Format("SQL function not allowed: `{0}`", fn));
 					}
 					else 
 						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
@@ -556,16 +567,16 @@ namespace JDCloud
 		{
 			var colArr = new List<string>();
 			foreach (var col0 in orderby.Split(',')) {
-				var col = col0;
+				var col = col0.Trim();
 				Match m;
-				if (! (m=Regex.Match(col, @"^\s*(\w+\.)?(\w+)(\s+(asc|desc))?", RegexOptions.IgnoreCase)).Success)
+				if (! (m=Regex.Match(col, @"^(\w+\.)?(\w+)(\s+(asc|desc))?$", RegexOptions.IgnoreCase)).Success)
 					throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
 				if (m.Groups[1].Value != null) // e.g. "t0.id desc"
 				{
 					colArr.Add(col);
 					continue;
 				}
-				col = Regex.Replace(col, @"^\s*(\w+)", m1 => {
+				col = Regex.Replace(col, @"^(\w+)", m1 => {
 					string col1 = m1.Groups[1].Value;
 					if (this.addVCol(col1, true, "-") != false)
 						return col1;
@@ -576,9 +587,8 @@ namespace JDCloud
 			return string.Join(",", colArr);
 		}
 
-
 		private bool afterIsCalled = false;
-		public virtual void after(ref object ret)
+		public void after(ref object ret)
 		{
 			// 确保只调用一次
 			if (afterIsCalled)
@@ -587,21 +597,22 @@ namespace JDCloud
 
 			if (ac == "get") {
 				var ret1 = ret as JsObject;
-				this.handleRow(ref ret1);
+				this.handleRow(ret1);
 			}
 			else if (ac == "query") {
-				var ls = ret as List<object>;
-				ls.ForEach(delegate( object rowData) {
+				var ls = ret as JsArray;
+				ls.ForEach(rowData => {
 					var row = rowData as JsObject;
-					this.handleRow(ref row);
+					this.handleRow(row);
 				});
 			}
+			/*
 			else if (ac == "add") {
-				this.id = ret;
 			}
+			*/
 			this.onAfter(ref ret);
 
-			/*
+			/* TODO
 			foreach ($this.onAfterActions as $fn)
 			{
 				# NOTE: php does not allow call $this.onAfterActions();
@@ -612,30 +623,31 @@ namespace JDCloud
 
 		public static string create(string table)
 		{
+			//TODO
 			return "AC_" + table;
 		}
 
-		public object api_add()
+		public virtual object api_add()
 		{
 			var keys = new StringBuilder();
 			var values = new StringBuilder();
 
-			var form = ctx.Request.Form;
-			foreach (string k in form)
+			foreach (string k in _POST)
 			{
 				if (k == "id")
 					continue;
-				if (form[k] == "")
+				var val = _POST[k];
+				if (val.Length == 0)
 					continue;
 				if (!Regex.IsMatch(k, @"^\w+$"))
-					throw new MyException(E_PARAM, "bad key " + k);
+					throw new MyException(E_PARAM, string.Format("bad property `{0}`" + k));
 				if (keys.Length > 0)
 				{
 					keys.Append(", ");
 					values.Append(", ");
 				}
 				keys.Append(k);
-				string val = htmlEscape(form[k]);
+				val = htmlEscape(val);
 				values.Append(Q(val));
 			}
 			
@@ -643,45 +655,23 @@ namespace JDCloud
 				throw new MyException(E_PARAM, "no field found to be added");
 
 			string sql = string.Format("INSERT INTO {0} ({1}) VALUES ({2})", table, keys, values);
-
-			int id = execOne(sql, true);
+			this.id = execOne(sql, true);
 
 			string res = param("res") as string;
 			object ret = null;
 			if (res != null)
 			{
-				this.id = id;
 				ret = api_get();
 			}
 			else
-				ret = id;
+				ret = this.id;
 			return ret;
-			/*
-			//TODO: cache the table format
-			SSTk.SSDataTable tbl = cnn.ExecQueryForWrite("SELECT * FROM " + table + " WHERE 1<>1");
-			DataRow row = tbl.AddRow();
-			NameValueCollection form = ctx.Request.Form;
-			foreach (string k in ctx.Request.Form.Keys)
-			{
-				try
-				{
-					row[k] = form[k];
-				}
-				catch (ArgumentException)
-				{
-					throw new MyException(E_PARAM, "bad field `" + k + "`");
-				}
-			}
-			tbl.Update();
-			return getLastInsertId();
-			*/
 		}
 
-		public void api_set()
+		public virtual void api_set()
 		{
 			var kv = new StringBuilder();
-			var form = ctx.Request.Form;
-			foreach (string k in form)
+			foreach (string k in _POST)
 			{
 				if (k == "id")
 					continue;
@@ -689,19 +679,19 @@ namespace JDCloud
 				//if (substr($k,0,2) == "p_")
 					//continue;
 				// TODO: check meta
-				if (!Regex.IsMatch((string)k, @"^\w+$"))
-					throw new MyException(E_PARAM, "bad key " + k);
+				if (!Regex.IsMatch(k, @"^\w+$"))
+					throw new MyException(E_PARAM, string.Format("bad property `{0}`" + k));
 
 				if (kv.Length > 0)
 					kv.Append(", ");
-				string v = form[k];
 				// 空串或null置空；empty设置空字符串
-				if (v == "" || v == "null")
+				var val = _POST[k];
+				if (val == "" || val == "null")
 					kv.Append(k + "=null");
-				else if (v == "empty")
+				else if (val == "empty")
 					kv.Append(k + "=''");
 				else
-					kv.Append(k + "=" + Q(htmlEscape(v)));
+					kv.Append(k + "=" + Q(htmlEscape(val)));
 			}
 			if (kv.Length == 0) 
 			{
@@ -713,7 +703,7 @@ namespace JDCloud
 			}
 		}
 
-		public void api_del()
+		public virtual void api_del()
 		{
 			string sql = string.Format("DELETE FROM {0} WHERE id={1}", table, id);
 			int cnt = execOne(sql);
@@ -721,23 +711,60 @@ namespace JDCloud
 				throw new MyException(E_PARAM, string.Format("not found id={0}", id));
 		}
 
-		public object api_get()
+		protected StringBuilder genQuerySql()
 		{
-			/*
-			if (! $sqlConf["res"][0] != null)
-				$sqlConf["res"][0] = "t0.*";
-			else if ($sqlConf["res"][0] == "")
-				array_shift($sqlConf["res"]);
-			$resSql = join(",", $sqlConf["res"]);
-			if ($resSql == "") {
-				$resSql = "t0.id";
+			string a, b;
+			return genQuerySql(out a, out b);
+		}
+		protected StringBuilder genQuerySql(out string tblSql, out string condSql)
+		{
+			if (sqlConf.res[0] == null)
+				sqlConf.res[0] = "t0.*";
+			else if (sqlConf.res[0] == "")
+				sqlConf.res.RemoveAt(0);
+
+			string resSql = string.Join(",", sqlConf.res);
+			if (resSql == "") {
+				resSql = "t0.id";
 			}
-			*/
-			string resSql = "*";
-			string sql = string.Format("SELECT {0} FROM {1} WHERE id={2}", resSql, table, id);
-			object ret = queryOne(sql, true);
+			if (sqlConf.distinct) {
+				resSql = "DISTINCT " + resSql;
+			}
+
+			tblSql = table + " t0";
+			if (sqlConf.join.Count > 0)
+				tblSql += "\n" + string.Join("\n", sqlConf.join);
+
+			var condBuilder = new StringBuilder();
+			foreach (string cond in sqlConf.cond) {
+				if (cond == null)
+					continue;
+				if (condBuilder.Length > 0)
+					condBuilder.Append(" AND ");
+				if (cond.IndexOf(" and ", StringComparison.OrdinalIgnoreCase) > 0 || cond.IndexOf(" or ", StringComparison.OrdinalIgnoreCase) > 0)
+					condBuilder.AppendFormat("({0})", cond);
+				else 
+					condBuilder.Append(cond);
+			}
+			condSql = condBuilder.ToString();
+			StringBuilder sql = new StringBuilder();
+			sql.AppendFormat("SELECT {0} FROM {1}", resSql, tblSql);
+			if (condBuilder.Length > 0)
+			{
+				// TODO: flag_handleCond(condSql);
+				sql.AppendFormat("\nWHERE {0}", condBuilder);
+			}
+			return sql;
+		}
+
+		// return: JsObject
+		public virtual object api_get()
+		{
+			StringBuilder sql = genQuerySql();
+			object ret = queryOne(sql.ToString(), true);
 			if (ret == null) 
 				throw new MyException(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
+			//TODO
 			//handleSubObj($sqlConf["subobj"], $id, $ret);
 
 			return ret;
@@ -750,7 +777,6 @@ namespace JDCloud
 			bool enableTotalCnt = false;
 			bool enablePartialQuery = false;
 
-
 			// support jquery-easyui
 			if (pagesz_o == null && pagekey_o == null) {
 				pagesz_o = param("rows/i");
@@ -762,11 +788,13 @@ namespace JDCloud
 				}
 			}
 			int pagesz = Convert.ToInt32(pagesz_o);
-			if (pagesz == 0)
-				pagesz = 20;
 			int maxPageSz = Math.Min(this.maxPageSz, PAGE_SZ_LIMIT);
 			if (pagesz < 0 || pagesz > maxPageSz)
 				pagesz = maxPageSz;
+			else if (pagesz == 0)
+				pagesz = 20;
+
+			int pagekey = Convert.ToInt32(pagekey_o);
 
 			if (sqlConf.gres != null) {
 				enablePartialQuery = false;
@@ -778,7 +806,7 @@ namespace JDCloud
 			if (orderSql == null)
 				orderSql = defaultSort;
 
-			if (enableTotalCnt == false && pagekey_o != null && (int)pagekey_o == 0)
+			if (enableTotalCnt == false && pagekey_o != null && pagekey == 0)
 			{
 				enableTotalCnt = true;
 			}
@@ -788,12 +816,12 @@ namespace JDCloud
 			if (! enablePartialQuery) {
 				if (Regex.IsMatch(orderSql, @"^(t0\.)?id\b")) {
 					enablePartialQuery = true;
-					if (pagekey_o!= null && (int)pagekey_o != 0) {
+					if (pagekey_o!= null && pagekey != 0) {
 						if (Regex.IsMatch(orderSql, @"\bid DESC", RegexOptions.IgnoreCase)) {
-							partialQueryCond = "t0.id<" + pagekey_o;
+							partialQueryCond = "t0.id<" + pagekey;
 						}
 						else {
-							partialQueryCond = "t0.id>" + pagekey_o;
+							partialQueryCond = "t0.id>" + pagekey;
 						}
 						// setup res for partialQuery
 						if (partialQueryCond != null) {
@@ -805,44 +833,9 @@ namespace JDCloud
 					}
 				}
 			}
-			if (pagekey_o == null)
-				pagekey_o = 1;
 
-			if (sqlConf.res[0] == null)
-				sqlConf.res[0] = "t0.*";
-			else if (sqlConf.res[0] == "")
-				sqlConf.res.RemoveAt(0);
-
-			string resSql = string.Join(",", sqlConf.res);
-			if (resSql == "") {
-				resSql = "t0.id";
-			}
-			if (sqlConf.distinct != null) {
-				resSql = "DISTINCT " + resSql;
-			}
-
-			string tblSql = table + " t0";
-			if (sqlConf.join.Count > 0)
-				tblSql += "\n" + string.Join("\n", sqlConf.join);
-
-			string condSql = "";
-			foreach (string cond in sqlConf.cond) {
-				if (cond == null)
-					continue;
-				if (condSql.Length > 0)
-					condSql += " AND ";
-				if (cond.IndexOf(" and ", StringComparison.OrdinalIgnoreCase) > 0 || cond.IndexOf(" or ", StringComparison.OrdinalIgnoreCase) > 0)
-					condSql += "({cond})";
-				else 
-					condSql += cond;
-			}
-			StringBuilder sql = new StringBuilder();
-			sql.AppendFormat("SELECT {0} FROM {1}", resSql, tblSql);
-			if (condSql.Length > 0)
-			{
-				// TODO: flag_handleCond(condSql);
-				sql.Append("\nWHERE condSql");
-			}
+			string tblSql, condSql;
+			StringBuilder sql = genQuerySql(out tblSql, out condSql);
 			if (sqlConf.union != null) {
 				sql.Append("\nUNION\n").Append(sqlConf.union);
 			}
@@ -855,42 +848,36 @@ namespace JDCloud
 				sql.AppendFormat("\nORDER BY {0}", orderSql);
 
 				if (enableTotalCnt) {
-					string cntSql = "SELECT COUNT(*) FROM tblSql";
-					if (condSql != null)
-						cntSql += "\nWHERE condSql";
-					totalCnt = queryOne(cntSql);
+					string cntSql = "SELECT COUNT(*) FROM " + tblSql;
+					if (condSql.Length > 0)
+						cntSql += "\nWHERE " + condSql;
+					totalCnt = queryScalar(cntSql);
 				}
 
 				if (enablePartialQuery) {
 					sql.AppendFormat("\nLIMIT {0}", pagesz);
 				}
 				else {
-					sql.AppendFormat("\nLIMIT {0},{1}", ((int)pagekey_o-1)*pagesz, pagesz);
+					if (pagekey == 0)
+						pagekey = 1;
+					sql.AppendFormat("\nLIMIT {0},{1}", (pagekey-1)*pagesz, pagesz);
 				}
 			}
 
-		/*
-			if (forGet) {
-				ret = queryOne(sql, PDO::FETCH_ASSOC);
-				if (ret == false) 
-					throw new MyException(E_PARAM, "not found `tbl.id`=`id`");
-				handleSubObj(sqlConf["subobj"], id, ret);
-			}
-		*/
 			var retArr = queryAll(sql.ToString(), true);
-			object reto = retArr;
 
 			// Note: colCnt may be changed in after().
 			int fixedColCnt = retArr.Count()==0? 0: (retArr[0] as JsArray).Count();
+			object reto = retArr;
 			this.after(ref reto);
 
 			object nextkey = null;
 			if (pagesz == retArr.Count) { // 还有下一页数据, 添加nextkey
 				if (enablePartialQuery) {
-nextkey = (retArr.Last() as JsObject)["id"];
+					nextkey = (retArr.Last() as JsObject)["id"];
 				}
 				else {
-					nextkey = (int)pagekey_o + 1;
+					nextkey = pagekey + 1;
 				}
 			}
 			//TODO: ret = objarr2table(ret, fixedColCnt);
@@ -998,11 +985,11 @@ nextkey = (retArr.Last() as JsObject)["id"];
 				def = m.Groups[1].Value;
 			}
 			else
-				throw new MyException(E_SERVER, "bad res definition: `res`");
+				throw new MyException(E_SERVER, string.Format("bad res definition: `{0}`", res));
 
 			if (this.vcolMap.ContainsKey(colName)) {
 				if (added && this.vcolMap[colName].added)
-					throw new MyException(E_SERVER, "res for col `colName` has added: `res`");
+					throw new MyException(E_SERVER, string.Format("res for col `{0}` has added: `{1}`", colName, res));
 				this.vcolMap[ colName ].added = true;
 			}
 			else {
@@ -1014,7 +1001,7 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 		private void initVColMap()
 		{
-			if (this.vcolMap == null) {
+			if (this.vcolMap == null && this.vcolDefs != null) {
 				this.vcolMap = new Dictionary<string,Vcol>();
 				int idx = 0;
 				foreach (var vcolDef in this.vcolDefs) {
@@ -1041,7 +1028,7 @@ nextkey = (retArr.Last() as JsObject)["id"];
 		{
 			if (! this.vcolMap.ContainsKey(col)) {
 				if (!ignoreError)
-					throw new MyException(E_SERVER, "unknown vcol `col`");
+					throw new MyException(E_SERVER, string.Format("unknown vcol `{0}`", col));
 				return false;
 			}
 			if (this.vcolMap[col].added)
@@ -1059,6 +1046,8 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 		private void addDefaultVCols()
 		{
+			if (this.vcolDefs == null)
+				return;
 			int idx = 0;
 			foreach (var vcolDef in this.vcolDefs) {
 				if (vcolDef.isDefault) {
