@@ -220,13 +220,13 @@ namespace JDCloud
 	{
 		public List<string> res;
 		public string join;
-		public bool default_;
+		public bool isDefault;
 	}
 	public struct SubobjDef
 	{
 		public string sql;
 		public bool wantOne;
-		public bool default_;
+		public bool isDefault;
 	}
 	struct SqlConf
 	{
@@ -275,7 +275,7 @@ namespace JDCloud
 		// for get/query
 		// virtual columns definition
 		protected List<VcolDef> vcolDefs; // elem: {res, join, default?=false}
-		protected Dictionary<string, SubobjDef> subobj; // elem: { name => {sql, wantOne, default_}}
+		protected Dictionary<string, SubobjDef> subobj; // elem: { name => {sql, wantOne, isDefault}}
 
 		// TODO: 回调函数集。在after中执行（在onAfter回调之后）。
 		// protected onAfterActions = [];
@@ -292,10 +292,31 @@ namespace JDCloud
 			this.table = table;
 			this.ac = ac;
 		}
+
+		protected virtual void onValidate()
+		{
+		}
+		protected virtual void onValidateId()
+		{
+		}
+		protected virtual void onHandleRow(ref JsObject rowData)
+		{
+		}
+		protected virtual void onAfter(ref object ret)
+		{
+		}
+		protected virtual void onQuery()
+		{
+		}
+		protected virtual int onGenId()
+		{
+			return 0;
+		}
+
 		public virtual void before()
 		{
 			if (this.allowedAc != null && stdAc.IndexOf(ac) >= 0 && this.allowedAc.IndexOf(ac) < 0)
-				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table);
+				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
 
 			if (ac == "get" || ac == "set" || ac == "del") {
 				this.onValidateId();
@@ -336,7 +357,7 @@ namespace JDCloud
 							continue;
 						*/
 						var v = _POST[field];
-						if (v != null && (v == "null" || v == "" || v =="empty" ) {
+						if (v != null && (v == "null" || v == "" || v =="empty" )) {
 							throw new MyException(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
 						}
 					}
@@ -347,120 +368,194 @@ namespace JDCloud
 				string gres = param("gres") as string;
 				string res = param("res", 'a', this.defaultRes) as string;
 				sqlConf = new SqlConf() {
-					{"res",  new JsArray(res)},
-					{"gres", gres},
-					{"cond", new JsArray(k[param("cond")},
-					"join" => [],
-					"orderby" => param("orderby"),
-					"subobj" => [],
-					"union" => param("union"),
-					"distinct" => param("distinct")
+					res = new JsArray{res},
+					gres = gres,
+					cond = new JsArray{param("cond")},
+					join = new JsArray(),
+					orderby = param("orderby"),
+					subobj = new JsArray(),
+					union = param("union"),
+					distinct = param("distinct")
 				};
 
-				this->initVColMap();
+				this.initVColMap();
 
-				# support internal param res2/join/cond2
+				/*
+				// support internal param res2/join/cond2
 				if ((res2 = param("res2")) != null) {
 					if (! is_array(res2))
 						throw new MyException(E_SERVER, "res2 should be an array: `res2`");
 					foreach (res2 as e)
-						this->addRes(e);
+						this.addRes(e);
 				}
 				if ((join=param("join")) != null) {
-					this->addJoin(join);
+					this.addJoin(join);
 				}
 				if ((cond2 = param("cond2")) != null) {
 					if (! is_array(cond2))
 						throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
 					foreach (cond2 as e)
-						this->addCond(e);
+						this.addCond(e);
 				}
 				if ((subobj = param("subobj")) != null) {
 					if (! is_array(subobj))
 						throw new MyException(E_SERVER, "subobj should be an array");
-					this->sqlConf["subobj"] = subobj;
+					this.sqlConf["subobj"] = subobj;
 				}
-				this->fixUserQuery();
+				*/
+				this.fixUserQuery();
 
-				this->onQuery();
+				this.onQuery();
 
 				// 确保res/gres参数符合安全限定
-				if (isset(gres)) {
-					this->filterRes(gres);
+				if (gres != null) {
+					this.filterRes(gres);
 				}
-				if (isset(res)) {
-					this->filterRes(res, true);
+				if (res != null) {
+					this.filterRes(res, true);
 				}
 				else {
-					this->addDefaultVCols();
-					if (count(this->sqlConf["subobj"]) == 0) {
-						foreach (this->subobj as col => def) {
-							if (@def["default"])
-								this->sqlConf["subobj"][col] = def;
+					this.addDefaultVCols();
+					if (this.sqlConf.subobj.Count == 0) {
+						foreach (var kv in this.subobj) {
+							var col = kv.Key;
+							var def = kv.Value;
+							if (def.isDefault)
+								this.sqlConf.subobj[col] = def;
 						}
 					}
 				}
 				if (ac == "query")
 				{
-					rv = this->supportEasyuiSort();
-					if (isset(this->sqlConf["orderby"]) && !isset(this->sqlConf["union"]))
-						this->sqlConf["orderby"] = this->filterOrderby(this->sqlConf["orderby"]);
+					var rv = this.supportEasyuiSort();
+					if (this.sqlConf.orderby != null && this.sqlConf.union == null)
+						this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
 				}
 			}
 		}
 
-			if (ac == "add" || ac == "set") {
-				/*
-				foreach ($this->readonlyFields as $field) {
-					if (array_key_exists($field, $_POST)) {
-						logit("!!! warn: attempt to change readonly field `$field`");
-						unset($_POST[$field]);
-					}
-				}
-				if ($ac == "set") {
-					foreach ($this->readonlyFields2 as $field) {
-						if (array_key_exists($field, $_POST)) {
-							logit("!!! warn: attempt to change readonly field `$field`");
-							unset($_POST[$field]);
-						}
-					}
-				}
-				if ($ac == "add") {
-					foreach ($this->requiredFields as $field) {
-	// 					if (! issetval($field, $_POST))
-	// 						throw new MyException(E_PARAM, "missing field `{$field}`", "参数`{$field}`未填写");
-						mparam($field, $_POST); // validate field and type; refer to field/type format for mparam.
-					}
-				}
-				else { # for set, the fields can not be set null
-					$fs = array_merge($this->requiredFields, $this->requiredFields2);
-					foreach ($fs as $field) {
-						if (is_array($field)) // TODO
-							continue;
-						if (array_key_exists($field, $_POST) && ( ($v=$_POST[$field]) == "null" || $v == "" || $v=="empty" )) {
-							throw new MyException(E_PARAM, "{$this->table}.set: cannot set field `$field` to null.", "字段`$field`不允许置空");
-						}
-					}
-				}
-				*/
-				this.onValidate();
-			}
-			
-		}
-
-		private void handleRow(ref object rowData)
+		private void handleRow(ref JsObject rowData)
 		{
-			/*
-			foreach ($this->hiddenFields as $field) {
-				unset($rowData[$field]);
+			foreach (var field in this.hiddenFields) {
+				rowData.Remove(field);
 			}
-			if ($rowData["pwd"] != null)
-				$rowData["pwd"] = "****";
-			flag_handleResult($rowData);
-			*/
+			if (rowData.ContainsKey("pwd"))
+				rowData["pwd"] = "****";
+			// TODO: flag_handleResult(rowData);
 			this.onHandleRow(ref rowData);
 		}
-		
+
+		// for query. "field1"=>"t0.field1"
+		private void fixUserQuery()
+		{
+			if (this.sqlConf.cond[0] != null)) {
+				if (this.sqlConf.cond[0].IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
+					throw new MyException(E_SERVER, "forbidden SELECT in param cond");
+				}
+				// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
+				this.sqlConf.cond[0] = Regex.Replace(this.sqlConf.cond[0], @"/[\w|.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
+					// 't0.0' for col, or 'voldef' for vcol
+					var col = m.Value;
+					if (col.Contains('.'))
+						return col;
+					if (this.vcolMap.ContainsKey(col)) {
+						this.addVCol(col, false, "-");
+						return this.vcolMap[col].def;
+					}
+					return "t0." + col;
+				}, RegexOptions.IgnoreCase);
+			}
+		}
+		private void supportEasyuiSort()
+		{
+			// support easyui: sort/order
+			if (isset(_REQUEST["sort"]))
+			{
+				orderby = _REQUEST["sort"];
+				if (isset(_REQUEST["order"]))
+					orderby .= " " . _REQUEST["order"];
+				this.sqlConf["orderby"] = orderby;
+			}
+		}
+		// return: new field list
+		private void filterRes(res, supportFn=false)
+		{
+			firstCol = "";
+			foreach (explode(',', res) as col) {
+				col = trim(col);
+				alias = null;
+				fn = null;
+				if (col === "*" || col === "t0.*") {
+					firstCol = "t0.*";
+					continue;
+				}
+				// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1"
+				if (! Regex.IsMatch('/^\s*(\w+)(?:\s+(?:AS\s+)?(\S+))?\s*/i', col, ms))
+				{
+					// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
+					if (supportFn && Regex.IsMatch('/(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)/i', col, ms)) {
+						list(fn, alias) = [strtoupper(ms[1]), ms[2]];
+						if (fn != "COUNT" && fn != "SUM")
+							throw new MyException(E_FORBIDDEN, "void not allowed: `fn`");
+					}
+					else 
+						throw new MyException(E_PARAM, "bad property `col`");
+				}
+				else {
+					if (ms[2]) {
+						col = ms[1];
+						alias = ms[2];
+					}
+				}
+				if (isset(alias) && alias[0] != '"') {
+					alias = '"' . alias . '"';
+				}
+				if (isset(fn)) {
+					this.addRes(col);
+					continue;
+				}
+
+	// 			if (! ctype_alnum(col))
+	// 				throw new MyException(E_PARAM, "bad property `col`");
+				if (this.addVCol(col, true, alias) === false) {
+					if (array_key_exists(col, this.subobj)) {
+						this.sqlConf["subobj"][alias ?: col] = this.subobj[col];
+					}
+					else {
+						col = "t0." . col;
+						if (isset(alias)) {
+							col .= " AS {alias}";
+						}
+						this.addRes(col, false);
+					}
+				}
+			}
+			this.sqlConf["res"][0] = firstCol;
+		}
+
+		private void filterOrderby(orderby)
+		{
+			colArr = [];
+			foreach (explode(',', orderby) as col) {
+				if (! Regex.IsMatch('/^\s*(\w+\.)?(\w+)(\s+(asc|desc))?/i', col, ms))
+					throw new MyException(E_PARAM, "bad property `col`");
+				if (ms[1]) // e.g. "t0.id desc"
+				{
+					colArr[] = col;
+					continue;
+				}
+				col = preg_replace_callback('/^\s*(\w+)/', void (ms) {
+					col1 = ms[1];
+					if (this.addVCol(col1, true, '-') !== false)
+						return col1;
+					return "t0." . col1;
+				}, col);
+				colArr[] = col;
+			}
+			return join(",", colArr);
+		}
+
+
 		private bool afterIsCalled = false;
 		public virtual void after(ref object ret)
 		{
@@ -482,9 +577,9 @@ namespace JDCloud
 			this.onAfter(ref ret);
 
 			/*
-			foreach ($this->onAfterActions as $fn)
+			foreach ($this.onAfterActions as $fn)
 			{
-				# NOTE: php does not allow call $this->onAfterActions();
+				# NOTE: php does not allow call $this.onAfterActions();
 				$fn();
 			}
 			*/
@@ -493,19 +588,6 @@ namespace JDCloud
 		public static string create(string table)
 		{
 			return "AC_" + table;
-		}
-
-		protected virtual void onValidateId()
-		{
-		}
-		protected virtual void onValidate()
-		{
-		}
-		protected virtual void onHandleRow(ref object rowData)
-		{
-		}
-		protected virtual void onAfter(ref object ret)
-		{
 		}
 
 		public object api_add()
@@ -690,7 +772,7 @@ namespace JDCloud
 						}
 						// setup res for partialQuery
 						if (partialQueryCond != null) {
-// 							if (sqlConf["res"][0] != null && !preg_match('/\bid\b/',sqlConf["res"][0])) {
+// 							if (sqlConf["res"][0] != null && !Regex.IsMatch('/\bid\b/',sqlConf["res"][0])) {
 // 								array_unshift(sqlConf["res"], "t0.id");
 // 							}
 							sqlConf.cond.Insert(0, partialQueryCond);
@@ -816,6 +898,174 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 			return ret;
 		}
+
+		final public void addRes(res, analyzeCol=true)
+		{
+			this.sqlConf["res"][] = res;
+			if (analyzeCol)
+				this.setColFromRes(res, true);
+		}
+
+	/**
+	@fn AccessControl::addCond(cond, prepend=false)
+
+	@param prepend 为true时将条件排到前面。
+
+	调用多次addCond时，多个条件会依次用"AND"连接起来。
+
+	添加查询条件。
+	示例：假如设计有接口：
+
+		Ordr.query(q?) . tbl(..., payTm?)
+		参数：
+		q:: 查询条件，值为"paid"时，查询10天内已付款的订单。且结果会多返回payTm/付款时间字段。
+
+	实现时，在onQuery中检查参数"q"并定制查询条件：
+
+		protected void onQuery()
+		{
+			// 限制只能看用户自己的订单
+			uid = _SESSION["uid"];
+			this.addCond("t0.userId=uid");
+
+			q = param("q");
+			if (isset(q) && q == "paid") {
+				validDate = date("Y-m-d", strtotime("-9 day"));
+				this.addRes("olpay.tm payTm");
+				this.addJoin("INNER JOIN OrderLog olpay ON olpay.orderId=t0.id");
+				this.addCond("olpay.action='PA' AND olpay.tm>'validDate'");
+			}
+		}
+
+	@see AccessControl::addRes
+	@see AccessControl::addJoin
+	 */
+		public void addCond(cond, prepend=false)
+		{
+			if (prepend)
+				array_unshift(this.sqlConf["cond"], cond);
+			else
+				this.sqlConf["cond"][] = cond;
+		}
+
+		/**
+	@fn AccessControl::addJoin(joinCond)
+
+	添加Join条件.
+
+	@see AccessControl::addCond 其中有示例
+		 */
+		public void addJoin(string join)
+		{
+			this.sqlConf.join.Add(join);
+		}
+
+		private void setColFromRes(string res, bool added, int vcolDefIdx=-1)
+		{
+			Match m = null;
+			string colName, def;
+			if ( (m=Regex.Match(res, @"^(\w+)\.(\w+)")).Success) {
+				colName = m.Groups[2];
+				def = res;
+			}
+			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?(\w+)\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
+				colName = m.Groups[2];
+				def = m.Groups[1];
+			}
+			else
+				throw new MyException(E_SERVER, "bad res definition: `res`");
+
+			if (this.vcolMap.ContainsKey(colName))) {
+				if (added && this.vcolMap[colName].added)
+					throw new MyException(E_SERVER, "res for col `colName` has added: `res`");
+				this.vcolMap[ colName ].added = true;
+			}
+			else {
+				this.vcolMap[ colName ] = new Vcol() {
+					def=def, def0=res, added=added, vcolDefIdx=vcolDefIdx
+				};
+			}
+		}
+
+		private void initVColMap()
+		{
+			if (is_null(this.vcolMap)) {
+				this.vcolMap = [];
+				idx = 0;
+				foreach (this.vcolDefs as vcolDef) {
+					foreach (vcolDef["res"] as e) {
+						this.setColFromRes(e, false, idx);
+					}
+					++ idx;
+				}
+			}
+		}
+
+	/**
+	@fn AccessControl::addVCol(col, ignoreError=false, alias=null)
+
+	@param col 必须是一个英文词, 不允许"col as col1"形式; 该列必须在 vcolDefs 中已定义.
+	@param alias 列的别名。可以中文. 特殊字符"-"表示不加到最终res中(只添加join/cond等定义), 由addVColDef内部调用时使用.
+	@return Boolean T/F
+
+	用于AccessControl子类添加已在vcolDefs中定义的vcol. 一般应先考虑调用addRes(col)函数.
+
+	@see AccessControl::addRes
+	 */
+		protected void addVCol(string col, bool ignoreError = false, string alias = null)
+		{
+			if (! this.vcolMap.ContainsKey(col)) {
+				if (!ignoreError)
+					throw new MyException(E_SERVER, "unknown vcol `col`");
+				return false;
+			}
+			if (this.vcolMap[col].added)
+				return true;
+			this.addVColDef(this.vcolMap[col].vcolDefIdx, true);
+			if (alias != null) {
+				if (alias != "-")
+					this.addRes(this.vcolMap[col].def + " AS " + alias, false);
+			}
+			else {
+				this.addRes(this.vcolMap[col].def0, false);
+			}
+			return true;
+		}
+
+		private void addDefaultVCols()
+		{
+			int idx = 0;
+			foreach (var vcolDef in this.vcolDefs) {
+				if (vcolDef.isDefault) {
+					this.addVColDef(idx);
+				}
+				++ idx;
+			}
+		}
+
+		private void addVColDef(int idx, bool dontAddRes = false)
+		{
+			if (idx < 0 || @this.vcolDefs[idx].added)
+				return;
+			this.vcolDefs[idx].added = true;
+
+			var vcolDef = this.vcolDefs[idx];
+			if (! dontAddRes) {
+				foreach (var e in vcolDef.res) {
+					this.addRes(e);
+				}
+			}
+			if (vcolDef.require != null)
+			{
+				var requireCol = vcolDef.require;
+				this.addVCol(requireCol, false, "-");
+			}
+			if (vcolDef.join != null)
+				this.addJoin(vcolDef.join);
+			if (vcolDef.cond != null)
+				this.addCond(vcolDef.cond);
+		}
+
 	}
 
 	/// <summary>
