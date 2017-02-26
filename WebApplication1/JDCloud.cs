@@ -91,17 +91,104 @@ namespace JDCloud
 			}
 		}
 
-		// TODO
+		private string parseType_(ref string name)
+		{
+			string type = null;
+			int n;
+			if ((n=name.IndexOf('/')) >= 0)
+			{
+				type = name.Substring(n+1);
+				name = name.Substring(0, n);
+			}
+			else {
+				if (name == "id" || name.EndsWith("Id")) {
+					type = "i";
+				}
+				else {
+					type = "s";
+				}
+			}
+			return type;
+		}
+
+		public bool tobool(string s)
+		{
+			if (s == null)
+				return false;
+			s = s.ToLower();;
+			return !(s=="0" || s=="false" || s=="off");
+		}
 		public object param(string name, char from = 'a', object defVal = null)
 		{
-			object val = null;
+			object ret = null;
+			string val = null;
+			string type = parseType_(ref name);
 			if (from == 'a' || from == 'g')
 				val = _GET[name];
 			if ((val == null && from == 'a') || from == 'p')
 				val = _POST[name];
 			if (val == null && defVal != null)
-				val = defVal;
-			return val;
+				return defVal;
+
+			if (val != null) {
+				// avoid XSS attack
+				if (! name.StartsWith("cond"))
+					val = htmlEscape(val);
+				if (type == "s") {
+					ret = val;
+				}
+				else if (type == "i") {
+					int i;
+					if (! int.TryParse(val, out i))
+						throw new MyException(E_PARAM, string.Format("Bad Request - integer param `{0}`=`{1}`.", name, val));
+					ret = i;
+				}
+				else if (type == "n") {
+					double n;
+					if (! double.TryParse(val, out n))
+						throw new MyException(E_PARAM, string.Format("Bad Request - numeric param `{0}`=`{1}`.", name, val));
+					ret = n;
+				}
+				else if (type == "b") {
+					ret = tobool(val);
+				}
+				else if (type == "i+") {
+					var arr = new List<int>();
+					foreach (var e in val.Split(',')) {
+						int i;
+						if (! int.TryParse(e, out i))
+							throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` contains `{1}`.", name, e));
+						arr.Add(i);
+					}
+					if (arr.Count == 0)
+						throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` is empty.", name));
+					ret = arr;
+				}
+				else if (type == "dt" || type == "tm") {
+					DateTime dt;
+					if (! DateTime.TryParse(val, out dt))
+						throw new MyException(E_PARAM, string.Format("Bad Request - invalid datetime param `{0}`=`{1}`.", name, ret));
+					ret = dt;
+				}
+				/*
+				else if (type == "js" || type == "tbl") {
+					ret1 = json_decode(ret, true);
+					if (ret1 == null)
+						throw new MyException(E_PARAM, "Bad Request - invalid json param `name`=`ret`.");
+					if (type == "tbl") {
+						ret1 = table2objarr(ret1);
+						if (ret1 == false)
+							throw new MyException(E_PARAM, "Bad Request - invalid table param `name`=`ret`.");
+					}
+					ret = ret1;
+				}
+				else if (strpos(type, ":") >0)
+					ret = param_varr(ret, type, name);
+				*/
+				else 
+					throw new MyException(E_SERVER, string.Format("unknown type `{0}` for param `{1}`", type, name));
+			}
+			return ret;
 		}
 
 		public object mparam(string name, char from = 'a')
@@ -157,11 +244,9 @@ namespace JDCloud
 			var ret = new JsArray();
 			if (rd.HasRows)
 			{
-				while (true)
+				while (rd.Read())
 				{
 					ret.Add(readerToCol(rd, assoc));
-					if (rd.Read() == false)
-						break;
 				}
 			}
 			rd.Close();
@@ -532,11 +617,12 @@ namespace JDCloud
 						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
 				}
 				else {
-					if (m.Groups[2] != null) {
+					if (m.Groups[2].Length > 0) {
 						col = m.Groups[1].Value;
 						alias = m.Groups[2].Value;
 					}
 				}
+				// alias可以用引号，用于支持中文
 				if (alias != null && alias[0] != '"') {
 					alias = '"' + alias + '"';
 				}
@@ -548,7 +634,7 @@ namespace JDCloud
 	// 			if (! ctype_alnum(col))
 	// 				throw new MyException(E_PARAM, "bad property `col`");
 				if (this.addVCol(col, true, alias) == false) {
-					if (this.subobj.ContainsKey(col)) {
+					if (this.subobj != null && this.subobj.ContainsKey(col)) {
 						this.sqlConf.subobj[alias != null ? alias: col] = this.subobj[col];
 					}
 					else {
@@ -571,7 +657,7 @@ namespace JDCloud
 				Match m;
 				if (! (m=Regex.Match(col, @"^(\w+\.)?(\w+)(\s+(asc|desc))?$", RegexOptions.IgnoreCase)).Success)
 					throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
-				if (m.Groups[1].Value != null) // e.g. "t0.id desc"
+				if (m.Groups[1].Value.Length > 0) // e.g. "t0.id desc"
 				{
 					colArr.Add(col);
 					continue;
@@ -867,12 +953,13 @@ namespace JDCloud
 			var retArr = queryAll(sql.ToString(), true);
 
 			// Note: colCnt may be changed in after().
-			int fixedColCnt = retArr.Count()==0? 0: (retArr[0] as JsArray).Count();
+			int fixedColCnt = retArr.Count()==0? 0: (retArr[0] as JsObject).Count();
 			object reto = retArr;
 			this.after(ref reto);
 
 			object nextkey = null;
 			if (pagesz == retArr.Count) { // 还有下一页数据, 添加nextkey
+				// TODO: res参数中没有指定id时?
 				if (enablePartialQuery) {
 					nextkey = (retArr.Last() as JsObject)["id"];
 				}
@@ -882,7 +969,10 @@ namespace JDCloud
 			}
 			//TODO: ret = objarr2table(ret, fixedColCnt);
 			foreach (var mainObj in retArr) {
-				var id1 = (mainObj as JsObject)["id"];
+				object id1;
+				if ((mainObj as JsObject).TryGetValue("id", out id1))
+				{
+				}
 				/* TODO
 				if (id1 != null)
 					handleSubObj(sqlConf.subobj, id1, mainObj);
@@ -890,13 +980,14 @@ namespace JDCloud
 			}
 			string fmt = param("_fmt") as string;
 			JsObject ret = null;
-			if ((string)fmt == "list") {
-				ret = new JsObject() { { "list", ret } };
-			}
-			else {
+			// TODO: format
+			//if ((string)fmt == "list") {
+				ret = new JsObject() { { "list", retArr } };
+			//}
+			//else {
 				//TODO
 				//ret = objarr2table(ret, fixedColCnt);
-			}
+			//}
 			if (nextkey != null) {
 				ret["nextkey"] = nextkey;
 			}
@@ -1001,15 +1092,17 @@ namespace JDCloud
 
 		private void initVColMap()
 		{
-			if (this.vcolMap == null && this.vcolDefs != null) {
+			if (this.vcolMap == null)
 				this.vcolMap = new Dictionary<string,Vcol>();
-				int idx = 0;
-				foreach (var vcolDef in this.vcolDefs) {
-					foreach (var e in vcolDef.res) {
-						this.setColFromRes(e, false, idx);
-					}
-					++ idx;
+			if (this.vcolDefs == null)
+				return;
+
+			int idx = 0;
+			foreach (var vcolDef in this.vcolDefs) {
+				foreach (var e in vcolDef.res) {
+					this.setColFromRes(e, false, idx);
 				}
+				++ idx;
 			}
 		}
 

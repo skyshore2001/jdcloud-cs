@@ -5,7 +5,7 @@ using JDCloud;
 
 namespace JDApi
 {
-	public class Global
+	public class Global : JDApiBase
 	{
 		public string api_hello()
 		{
