@@ -85,8 +85,22 @@ namespace JDCloud
 			return "未知错误";
 		}
 
-		public HttpContext ctx;
-		public NameValueCollection _GET, _POST;
+		public HttpContext ctx_;
+		public HttpContext ctx
+		{
+			get
+			{
+				return ctx_;
+			}
+			set
+			{
+				this.ctx_ = value;
+				this._GET = ctx.Request.QueryString;
+				this._POST = ctx.Request.Form;
+				this._REQUEST = ctx.Request.Params;
+			}
+		}
+		public NameValueCollection _GET, _POST, _REQUEST;
 		
 		private SSTk.DbConn cnn_;
 		public SSTk.DbConn cnn
@@ -216,18 +230,22 @@ namespace JDCloud
 		}
 	}
 
-	public struct VcolDef
+	public class VcolDef
 	{
 		public List<string> res;
 		public string join;
+		public string cond;
 		public bool isDefault;
+		public string require;
+		public bool added;
 	}
-	public struct SubobjDef
+	public class SubobjDef
 	{
 		public string sql;
 		public bool wantOne;
 		public bool isDefault;
 	}
+
 	struct SqlConf
 	{
 		public List<string> cond;
@@ -235,11 +253,11 @@ namespace JDCloud
 		public List<string> join;
 		public string orderby;
 		public List<string> gres;
-		public List<string> subobj;
+		public Dictionary<string, SubobjDef> subobj;
 		public string distinct;
 		public string union;
 	}
-	struct Vcol
+	public class Vcol
 	{
 		public string def, def0;
 		public int vcolDefIdx; // TODO = -1;
@@ -368,14 +386,14 @@ namespace JDCloud
 				string gres = param("gres") as string;
 				string res = param("res", 'a', this.defaultRes) as string;
 				sqlConf = new SqlConf() {
-					res = new JsArray{res},
-					gres = gres,
-					cond = new JsArray{param("cond")},
-					join = new JsArray(),
-					orderby = param("orderby"),
-					subobj = new JsArray(),
-					union = param("union"),
-					distinct = param("distinct")
+					res = new List<string>{res},
+					gres = new List<string> {gres},
+					cond = new List<string>{param("cond") as string},
+					join = new List<string>(),
+					orderby = param("orderby") as string,
+					subobj = new Dictionary<string, SubobjDef>(),
+					union = param("union") as string,
+					distinct = param("distinct") as string
 				};
 
 				this.initVColMap();
@@ -427,7 +445,7 @@ namespace JDCloud
 				}
 				if (ac == "query")
 				{
-					var rv = this.supportEasyuiSort();
+					this.supportEasyuiSort();
 					if (this.sqlConf.orderby != null && this.sqlConf.union == null)
 						this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
 				}
@@ -448,7 +466,7 @@ namespace JDCloud
 		// for query. "field1"=>"t0.field1"
 		private void fixUserQuery()
 		{
-			if (this.sqlConf.cond[0] != null)) {
+			if (this.sqlConf.cond[0] != null) {
 				if (this.sqlConf.cond[0].IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
 					throw new MyException(E_SERVER, "forbidden SELECT in param cond");
 				}
@@ -469,90 +487,93 @@ namespace JDCloud
 		private void supportEasyuiSort()
 		{
 			// support easyui: sort/order
-			if (isset(_REQUEST["sort"]))
+			if (_REQUEST["sort"] != null)
 			{
-				orderby = _REQUEST["sort"];
-				if (isset(_REQUEST["order"]))
-					orderby .= " " . _REQUEST["order"];
-				this.sqlConf["orderby"] = orderby;
+				string orderby = _REQUEST["sort"];
+				if (_REQUEST["order"] != null)
+					orderby += " " + _REQUEST["order"];
+				this.sqlConf.orderby = orderby;
 			}
 		}
 		// return: new field list
-		private void filterRes(res, supportFn=false)
+		private void filterRes(string res, bool supportFn=false)
 		{
-			firstCol = "";
-			foreach (explode(',', res) as col) {
-				col = trim(col);
-				alias = null;
-				fn = null;
-				if (col === "*" || col === "t0.*") {
+			string firstCol = "";
+			foreach (var col0 in res.Split(',')) {
+				string col = col0.Trim();
+				string alias = null;
+				string fn = null;
+				if (col == "*" || col == "t0.*") {
 					firstCol = "t0.*";
 					continue;
 				}
+				Match m;
 				// 适用于res/gres, 支持格式："col" / "col col1" / "col as col1"
-				if (! Regex.IsMatch('/^\s*(\w+)(?:\s+(?:AS\s+)?(\S+))?\s*/i', col, ms))
+				if (! (m=Regex.Match(col, @"^\s*(\w+)(?:\s+(?:AS\s+)?(\S+))?\s*", RegexOptions.IgnoreCase)).Success)
 				{
 					// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
-					if (supportFn && Regex.IsMatch('/(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)/i', col, ms)) {
-						list(fn, alias) = [strtoupper(ms[1]), ms[2]];
+					if (supportFn && (m=Regex.Match(col, @"(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)", RegexOptions.IgnoreCase)).Success) {
+						fn = m.Groups[1].Value.ToUpper();
 						if (fn != "COUNT" && fn != "SUM")
-							throw new MyException(E_FORBIDDEN, "void not allowed: `fn`");
+							throw new MyException(E_FORBIDDEN, string.Format("void not allowed: `{0}`", fn));
 					}
 					else 
-						throw new MyException(E_PARAM, "bad property `col`");
+						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
 				}
 				else {
-					if (ms[2]) {
-						col = ms[1];
-						alias = ms[2];
+					if (m.Groups[2] != null) {
+						col = m.Groups[1].Value;
+						alias = m.Groups[2].Value;
 					}
 				}
-				if (isset(alias) && alias[0] != '"') {
-					alias = '"' . alias . '"';
+				if (alias != null && alias[0] != '"') {
+					alias = '"' + alias + '"';
 				}
-				if (isset(fn)) {
+				if (fn != null) {
 					this.addRes(col);
 					continue;
 				}
 
 	// 			if (! ctype_alnum(col))
 	// 				throw new MyException(E_PARAM, "bad property `col`");
-				if (this.addVCol(col, true, alias) === false) {
-					if (array_key_exists(col, this.subobj)) {
-						this.sqlConf["subobj"][alias ?: col] = this.subobj[col];
+				if (this.addVCol(col, true, alias) == false) {
+					if (this.subobj.ContainsKey(col)) {
+						this.sqlConf.subobj[alias != null ? alias: col] = this.subobj[col];
 					}
 					else {
-						col = "t0." . col;
-						if (isset(alias)) {
-							col .= " AS {alias}";
+						col = "t0." + col;
+						if (alias != null) {
+							col += " AS " + alias;
 						}
 						this.addRes(col, false);
 					}
 				}
 			}
-			this.sqlConf["res"][0] = firstCol;
+			this.sqlConf.res[0] = firstCol;
 		}
 
-		private void filterOrderby(orderby)
+		private string filterOrderby(string orderby)
 		{
-			colArr = [];
-			foreach (explode(',', orderby) as col) {
-				if (! Regex.IsMatch('/^\s*(\w+\.)?(\w+)(\s+(asc|desc))?/i', col, ms))
-					throw new MyException(E_PARAM, "bad property `col`");
-				if (ms[1]) // e.g. "t0.id desc"
+			var colArr = new List<string>();
+			foreach (var col0 in orderby.Split(',')) {
+				var col = col0;
+				Match m;
+				if (! (m=Regex.Match(col, @"^\s*(\w+\.)?(\w+)(\s+(asc|desc))?", RegexOptions.IgnoreCase)).Success)
+					throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
+				if (m.Groups[1].Value != null) // e.g. "t0.id desc"
 				{
-					colArr[] = col;
+					colArr.Add(col);
 					continue;
 				}
-				col = preg_replace_callback('/^\s*(\w+)/', void (ms) {
-					col1 = ms[1];
-					if (this.addVCol(col1, true, '-') !== false)
+				col = Regex.Replace(col, @"^\s*(\w+)", m1 => {
+					string col1 = m1.Groups[1].Value;
+					if (this.addVCol(col1, true, "-") != false)
 						return col1;
-					return "t0." . col1;
-				}, col);
-				colArr[] = col;
+					return "t0." + col1;
+				});
+				colArr.Add(col);
 			}
-			return join(",", colArr);
+			return string.Join(",", colArr);
 		}
 
 
@@ -565,11 +586,15 @@ namespace JDCloud
 			afterIsCalled = true;
 
 			if (ac == "get") {
-				this.handleRow(ref ret);
+				var ret1 = ret as JsObject;
+				this.handleRow(ref ret1);
 			}
 			else if (ac == "query") {
 				var ls = ret as List<object>;
-				ls.ForEach(delegate( object rowData) { this.handleRow(ref rowData); });
+				ls.ForEach(delegate( object rowData) {
+					var row = rowData as JsObject;
+					this.handleRow(ref row);
+				});
 			}
 			else if (ac == "add") {
 				this.id = ret;
@@ -899,9 +924,9 @@ nextkey = (retArr.Last() as JsObject)["id"];
 			return ret;
 		}
 
-		final public void addRes(res, analyzeCol=true)
+		public void addRes(string res, bool analyzeCol=true)
 		{
-			this.sqlConf["res"][] = res;
+			this.sqlConf.res.Add(res);
 			if (analyzeCol)
 				this.setColFromRes(res, true);
 		}
@@ -940,12 +965,12 @@ nextkey = (retArr.Last() as JsObject)["id"];
 	@see AccessControl::addRes
 	@see AccessControl::addJoin
 	 */
-		public void addCond(cond, prepend=false)
+		public void addCond(string cond, bool prepend=false)
 		{
 			if (prepend)
-				array_unshift(this.sqlConf["cond"], cond);
+				this.sqlConf.cond.Insert(0, cond);
 			else
-				this.sqlConf["cond"][] = cond;
+				this.sqlConf.cond.Add(cond);
 		}
 
 		/**
@@ -965,17 +990,17 @@ nextkey = (retArr.Last() as JsObject)["id"];
 			Match m = null;
 			string colName, def;
 			if ( (m=Regex.Match(res, @"^(\w+)\.(\w+)")).Success) {
-				colName = m.Groups[2];
+				colName = m.Groups[2].Value;
 				def = res;
 			}
 			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?(\w+)\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
-				colName = m.Groups[2];
-				def = m.Groups[1];
+				colName = m.Groups[2].Value;
+				def = m.Groups[1].Value;
 			}
 			else
 				throw new MyException(E_SERVER, "bad res definition: `res`");
 
-			if (this.vcolMap.ContainsKey(colName))) {
+			if (this.vcolMap.ContainsKey(colName)) {
 				if (added && this.vcolMap[colName].added)
 					throw new MyException(E_SERVER, "res for col `colName` has added: `res`");
 				this.vcolMap[ colName ].added = true;
@@ -989,11 +1014,11 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 		private void initVColMap()
 		{
-			if (is_null(this.vcolMap)) {
-				this.vcolMap = [];
-				idx = 0;
-				foreach (this.vcolDefs as vcolDef) {
-					foreach (vcolDef["res"] as e) {
+			if (this.vcolMap == null) {
+				this.vcolMap = new Dictionary<string,Vcol>();
+				int idx = 0;
+				foreach (var vcolDef in this.vcolDefs) {
+					foreach (var e in vcolDef.res) {
 						this.setColFromRes(e, false, idx);
 					}
 					++ idx;
@@ -1012,7 +1037,7 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 	@see AccessControl::addRes
 	 */
-		protected void addVCol(string col, bool ignoreError = false, string alias = null)
+		protected bool addVCol(string col, bool ignoreError = false, string alias = null)
 		{
 			if (! this.vcolMap.ContainsKey(col)) {
 				if (!ignoreError)
@@ -1045,11 +1070,11 @@ nextkey = (retArr.Last() as JsObject)["id"];
 
 		private void addVColDef(int idx, bool dontAddRes = false)
 		{
-			if (idx < 0 || @this.vcolDefs[idx].added)
+			if (idx < 0 || this.vcolDefs[idx].added)
 				return;
-			this.vcolDefs[idx].added = true;
 
 			var vcolDef = this.vcolDefs[idx];
+			vcolDef.added = true;
 			if (! dontAddRes) {
 				foreach (var e in vcolDef.res) {
 					this.addRes(e);
