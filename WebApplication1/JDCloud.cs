@@ -9,6 +9,7 @@ using System.Data.Common;
 using System.Data;
 using System.Collections.Specialized;
 using System.Text;
+using System.Web.SessionState;
 
 namespace JDCloud
 {
@@ -20,6 +21,13 @@ namespace JDCloud
 	{
 	}
 
+	/*
+	public interface IJDApiApp
+	{
+		string onCreateAc(string table);
+		int onGetPerms();
+	}
+	*/
 	public class DirectReturn : Exception
 	{
 	}
@@ -48,6 +56,10 @@ namespace JDCloud
 		public const int E_FORBIDDEN = 5;
 
 		public const int PAGE_SZ_LIMIT = 10000;
+
+		public const int AUTH_USER = 0x1;
+		public const int AUTH_EMP = 0x2;
+		public const int AUTH_LOGIN = AUTH_USER | AUTH_EMP;
 
 		public static readonly Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
 			{ E_AUTHFAIL, "认证失败" },
@@ -329,6 +341,34 @@ namespace JDCloud
 		public void logit(string s, string which = "trace")
 		{
 			//TODO
+		}
+
+		// TODO: move to api.cs
+		protected int onGetPerms()
+		{
+			int perms = 0;
+			if (ctx.Session["uid"] != null)
+				perms |= AUTH_USER;
+
+			return perms;
+		}
+
+		public void checkAuth(int perms)
+		{
+			if (hasPerm(perms))
+				return;
+			if (hasPerm(AUTH_LOGIN))
+				throw new MyException(E_FORBIDDEN, "permission denied.");
+			throw new MyException(E_NOAUTH, "need login");
+		}
+
+		int perms_;
+		public bool hasPerm(int perms)
+		{
+			perms_ = onGetPerms();
+			if ((perms_ & perms) != 0)
+				return true;
+			return false;
 		}
 	}
 
@@ -1208,7 +1248,7 @@ namespace JDCloud
 	/// <summary>
 	/// Summary description for Handler1
 	/// </summary>
-	public class JDHandler : JDApiBase, IHttpHandler
+	public class JDHandler : JDApiBase, IHttpHandler, IRequiresSessionState
 	{
 		public void ProcessRequest(HttpContext context)
 		{

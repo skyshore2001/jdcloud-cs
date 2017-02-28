@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Jasmine Spec Runner v2.5.2</title>
+
+  <link rel="shortcut icon" type="image/png" href="lib/jasmine-2.5.2/jasmine_favicon.png">
+  <link rel="stylesheet" href="lib/jasmine-2.5.2/jasmine.css">
+
+  <script src="lib/jasmine-2.5.2/jasmine.js"></script>
+  <script src="lib/jasmine-2.5.2/jasmine-html.js"></script>
+  <script src="lib/jasmine-2.5.2/boot.js"></script>
+
+  <!-- include source files here... -->
+
+  <!-- include spec files here... -->
+  <script src="lib/jquery-1.11.1.min.js"></script>
+  <script src="lib/tool.js"></script>
+  <script src="rtest.js"></script>
+
+  <script>
+var g_cfg = {
+	url: "http://localhost:59905/api",
+	apilog_new_id: 12296
+};
+
+if (location.href.substr(-1)!="?" && location.search.indexOf("spec")<0)
+	location.search = "spec=1";
+	</script>
+</head>
+
+<body>
+</body>
+</html>

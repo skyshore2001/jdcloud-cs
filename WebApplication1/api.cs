@@ -39,11 +39,6 @@ namespace JDApi
 				bool assoc = (bool)param("assoc/b", false);
 				ret = queryOne(sql, assoc);
 			}
-			else if (f == "queryScalar")
-			{
-				string sql = mparam("sql", null, false) as string;
-				ret = queryScalar(sql);
-			}
 			else if (f == "execOne")
 			{
 				string sql = mparam("sql", null, false) as string;
@@ -61,6 +56,33 @@ namespace JDApi
 				{"id", 100},
 				{"name", "hello"}
 			};
+		}
+
+		public object api_login()
+		{
+			var uname = mparam("uname") as string;
+			var pwd = mparam("pwd") as string;
+			var id = 1001;
+			ctx.Session["uid"] = 1001;
+			return new JsObject() {
+				{"id", id}
+			};
+		}
+
+		public object api_whoami()
+		{
+			checkAuth(AUTH_USER);
+			var uid = (int)ctx.Session["uid"];
+			return new JsObject()
+			{
+				{"id", uid}
+			};
+		}
+		public void api_logout()
+		{
+			// checkAuth(AUTH_LOGIN);
+			if (ctx.Session != null)
+				ctx.Session.Abandon();
 		}
 	}
 
