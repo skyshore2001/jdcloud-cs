@@ -78,9 +78,10 @@ namespace JDCloud
 				this._GET = ctx.Request.QueryString;
 				this._POST = ctx.Request.Form;
 				this._REQUEST = ctx.Request.Params;
+				this._SERVER = ctx.Request.ServerVariables;
 			}
 		}
-		public NameValueCollection _GET, _POST, _REQUEST;
+		public NameValueCollection _GET, _POST, _REQUEST, _SERVER;
 		
 		private SSTk.DbConn cnn_;
 		public SSTk.DbConn cnn
@@ -111,52 +112,72 @@ namespace JDCloud
 			return type;
 		}
 
-		public bool tobool(string s)
+		public bool TryParseBool(string s, out bool val)
 		{
+			val = false;
 			if (s == null)
-				return false;
+			{
+				return true;
+			}
 			s = s.ToLower();;
-			return !(s=="0" || s=="false" || s=="off");
+			if (s=="0" || s=="false" || s=="off" || s == "no")
+				val = false;
+			else if (s=="1" || s=="true" || s=="on" || s =="yes")
+				val = true;
+			else
+				return false;
+			return true;
 		}
-		public object param(string name, char from = 'a', object defVal = null)
+
+		public object param(string name, object defVal = null, string coll = null, bool doHtmlEscape = true)
 		{
-			object ret = null;
-			string val = null;
 			string type = parseType_(ref name);
-			if (from == 'a' || from == 'g')
+			string val = null;
+			object ret = null;
+			if (coll == null || coll == "G")
 				val = _GET[name];
-			if ((val == null && from == 'a') || from == 'p')
+			if ((val == null && coll == null) || coll == "P")
 				val = _POST[name];
 			if (val == null && defVal != null)
 				return defVal;
 
 			if (val != null) {
-				// avoid XSS attack
-				if (! name.StartsWith("cond"))
-					val = htmlEscape(val);
-				if (type == "s") {
-					ret = val;
+				if (type == "s")
+				{
+					// avoid XSS attack
+					if (doHtmlEscape)
+						ret = htmlEscape(val);
+					else
+						ret = val;
 				}
-				else if (type == "i") {
+				else if (type == "i")
+				{
 					int i;
-					if (! int.TryParse(val, out i))
+					if (!int.TryParse(val, out i))
 						throw new MyException(E_PARAM, string.Format("Bad Request - integer param `{0}`=`{1}`.", name, val));
 					ret = i;
 				}
-				else if (type == "n") {
+				else if (type == "n")
+				{
 					double n;
-					if (! double.TryParse(val, out n))
+					if (!double.TryParse(val, out n))
 						throw new MyException(E_PARAM, string.Format("Bad Request - numeric param `{0}`=`{1}`.", name, val));
 					ret = n;
 				}
-				else if (type == "b") {
-					ret = tobool(val);
+				else if (type == "b")
+				{
+					bool b;
+					if (!TryParseBool(val, out b))
+						throw new MyException(E_PARAM, string.Format("Bad Request - bool param `{0}`=`{1}`.", name, val));
+					ret = b;
 				}
-				else if (type == "i+") {
+				else if (type == "i+")
+				{
 					var arr = new List<int>();
-					foreach (var e in val.Split(',')) {
+					foreach (var e in val.Split(','))
+					{
 						int i;
-						if (! int.TryParse(e, out i))
+						if (!int.TryParse(e, out i))
 							throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` contains `{1}`.", name, e));
 						arr.Add(i);
 					}
@@ -164,10 +185,11 @@ namespace JDCloud
 						throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` is empty.", name));
 					ret = arr;
 				}
-				else if (type == "dt" || type == "tm") {
+				else if (type == "dt" || type == "tm")
+				{
 					DateTime dt;
-					if (! DateTime.TryParse(val, out dt))
-						throw new MyException(E_PARAM, string.Format("Bad Request - invalid datetime param `{0}`=`{1}`.", name, ret));
+					if (!DateTime.TryParse(val, out dt))
+						throw new MyException(E_PARAM, string.Format("Bad Request - invalid datetime param `{0}`=`{1}`.", name, val));
 					ret = dt;
 				}
 				/*
@@ -185,15 +207,15 @@ namespace JDCloud
 				else if (strpos(type, ":") >0)
 					ret = param_varr(ret, type, name);
 				*/
-				else 
+				else
 					throw new MyException(E_SERVER, string.Format("unknown type `{0}` for param `{1}`", type, name));
 			}
 			return ret;
 		}
 
-		public object mparam(string name, char from = 'a')
+		public object mparam(string name, string coll = null, bool htmlEscape = true)
 		{
-			object val = param(name, from);
+			object val = param(name, null, coll, htmlEscape);
 			if (val == null)
 				throw new MyException(E_PARAM, "require param `" + name + "`");
 			return val;
@@ -229,10 +251,12 @@ namespace JDCloud
 			}
 			else
 			{
-				object[] arr = null;
-				rd.GetValues(arr);
-				ret = new JsArray();
-				(ret as JsArray).AddRange(arr);
+				var jsarr = new JsArray();
+				for (int i = 0; i < rd.FieldCount; ++i)
+				{
+					jsarr.Add(rd.GetValue(i));
+				}
+				ret = jsarr;
 			}
 			return ret;
 		}
@@ -253,7 +277,7 @@ namespace JDCloud
 			return ret;
 		}
 
-		// can cast to JsObject or JsArray
+		// can cast to JsObject or JsArray. 如果assoc=false且只有一列，直接返回数据。(相当于queryScalar)
 		public object queryOne(string sql, bool assoc = false)
 		{
 			DbDataReader rd = cnn.ExecQuery(sql);
@@ -261,6 +285,12 @@ namespace JDCloud
 			if (rd.HasRows)
 			{
 				ret = readerToCol(rd, assoc);
+				if (!assoc && (ret as JsArray).Count == 1)
+					ret = (ret as JsArray)[0];
+			}
+			else
+			{
+				ret = false;
 			}
 			rd.Close();
 			return ret;
@@ -452,7 +482,7 @@ namespace JDCloud
 						{
 							// 					if (! issetval(field, _POST))
 							// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
-							mparam(field, 'p'); // validate field and type; refer to field/type format for mparam.
+							mparam(field, "P"); // validate field and type; refer to field/type format for mparam.
 						}
 					}
 				}
@@ -486,7 +516,7 @@ namespace JDCloud
 					orderby = param("orderby") as string,
 					subobj = new Dictionary<string, SubobjDef>(),
 					union = param("union") as string,
-					distinct = (bool)param("distinct/b", 'a', false)
+					distinct = (bool)param("distinct/b", false)
 				};
 
 				this.initVColMap();
@@ -1186,10 +1216,19 @@ namespace JDCloud
 			try
 			{
 				string path = context.Request.Path;
-				Match m = Regex.Match(path, @"api/((\w+)(?:\.(\w+))?)$");
+				Match m = Regex.Match(path, @"api/+((\w+)(?:\.(\w+))?)$");
 				//Match m = Regex.Match(path, @"api/(\w+)");
 				if (! m.Success)
 					throw new MyException(E_PARAM, "bad ac");
+				// TODO: 测试模式允许跨域
+				string origin;
+				this.ctx = context;
+				if ((origin=_SERVER["HTTP_ORIGIN"]) != null)
+				{
+					context.Response.AddHeader("Access-Control-Allow-Origin", origin);
+					context.Response.AddHeader("Access-Control-Allow-Credentials", "true");
+				}
+
 				string ac = m.Groups[1].Value;
 				string ac1 = null;
 				string table = null;
@@ -1247,18 +1286,22 @@ namespace JDCloud
 			}
 			catch (Exception ex)
 			{
-				if (ex.InnerException is MyException)
+				Exception ex1 = ex.InnerException;
+				if (ex1 == null)
+					ex1 = ex;
+				if (ex1 is MyException)
 				{
-					MyException ex1 = ex.InnerException as MyException;
-					ret[0] = ex1.Code;
-					ret[1] = ex1.Message;
-					ret.Add(ex1.DebugInfo);
+					MyException ex2 = ex1 as MyException;
+					ret[0] = ex2.Code;
+					ret[1] = ex2.Message;
+					ret.Add(ex2.DebugInfo);
 				}
 				else
 				{
-					ret[0] = E_SERVER;
-					ret[1] = GetErrInfo(E_SERVER);
-					ret.Add(ex.Message);
+					ret[0] = ex1 is DbException? E_DB: E_SERVER;
+					ret[1] = GetErrInfo((int)ret[0]);
+					// TODO: test mode
+					ret.Add(ex1.Message);
 				}
 			}
 
