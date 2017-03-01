@@ -49,10 +49,24 @@
 	
 ## 对象型接口
 
+数据表
+
+@ApiLog: id, ac, tm, addr, ua
+
 ### 基本CRUD
 
-#### add接口
-
-	ApiLog.add()(ac, tm?, addr?=test_addr) -> id
+	ApiLog.add()(ac, tm?, addr?) -> id
 	ApiLog.add(res)(ac, tm?, addr?=test_addr) -> {按res指定返回}
+
+	ApiLog.get(id) -> {id, ...}
+	ApiLog.get(id, res) -> {按res指定返回}
+
+	ApiLog.set(id)(fields...)
+
+应用逻辑
+
+- 权限: AUTH_GUEST
+- 必填字段：ac
+- 只读字段：ac,tm
+- 隐藏字段：ua
 

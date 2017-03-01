@@ -88,6 +88,13 @@ namespace JDApi
 
 	public class AC_ApiLog : AccessControl
 	{
+		public AC_ApiLog()
+		{
+			this.requiredFields = new List<string>(){"ac"};
+			this.readonlyFields = new List<string>(){"tm"};
+			this.readonlyFields2 = new List<string>(){"ac"};
+			this.hiddenFields = new List<string>(){"ua"};
+		}
 		protected override void onValidate()
 		{
 			if (this.ac == "add")

@@ -177,7 +177,7 @@ namespace JDCloud
 			{
 				return true;
 			}
-			s = s.ToLower();;
+			s = s.ToLower();
 			if (s=="0" || s=="false" || s=="off" || s == "no")
 				val = false;
 			else if (s=="1" || s=="true" || s=="on" || s =="yes")

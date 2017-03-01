@@ -232,11 +232,18 @@ describe("对象型接口", function() {
 	xit("add操作-res", function () {
 		generalAdd(true);
 	});
+	it("add操作-必填字段", function () {
+		// ac为必填字段
+		var ret = callSvrSync("ApiLog.add", $.noop, {addr: "my addr"});
+		expect(ret).toJDCallFail(E_PARAM);
+	});
 
 	it("get操作", function () {
 		generalAdd();
 		var ret = callSvrSync("ApiLog.get", {id: id_});
 		expect(ret).toJDContainKey(["id", "addr", "ac", "tm"], true);
+		// ua是隐藏字段，不应返回
+		expect(ret).not.toJDContainKey(["ua"]);
 	});
 
 	it("get操作-res", function () {
@@ -244,6 +251,19 @@ describe("对象型接口", function() {
 		var ret = callSvrSync("ApiLog.get", {id: id_, res: "id,addr,tm"});
 		formatField(ret);
 		expect(ret).toEqual({id: id_, addr: postParam_.addr, tm: jasmine.any(Date)});
+	});
+	it("set操作", function () {
+		generalAdd();
+
+		var newAddr = "new-addr";
+		var ret = callSvrSync("ApiLog.set", {id: id_}, $.noop, {ac: "new-ac", addr: newAddr, tm: '2010-01-01'});
+		expect(ret).toEqual("OK");
+
+		var ret = callSvrSync("ApiLog.get", {id: id_, res: 'ac,addr,tm'});
+		formatField(ret);
+		// ac,tm是只读字段，设置无效。应该仍为当前日期
+		expect(ret).toEqual({ac: postParam_.ac, addr: newAddr, tm: jasmine.any(Date)});
+		expect(ret.tm.getFullYear()).toEqual(new Date().getFullYear());
 	});
 })
 
