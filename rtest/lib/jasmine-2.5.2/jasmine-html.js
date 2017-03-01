@@ -210,7 +210,7 @@ jasmineRequire.HtmlReporter = function(j$) {
 
       if (specsExecuted < totalSpecsDefined) {
         var skippedMessage = 'Ran ' + specsExecuted + ' of ' + totalSpecsDefined + ' specs - run all';
-        var skippedLink = order && order.random ? '?random=true' : '?';
+        var skippedLink = order && order.random ? '?spec=all&random=true' : '?spec=all';
         alert.appendChild(
           createDom('span', {className: 'jasmine-bar jasmine-skipped'},
             createDom('a', {href: skippedLink, title: 'Run all specs'}, skippedMessage)
@@ -397,11 +397,16 @@ jasmineRequire.HtmlReporter = function(j$) {
 };
 
 jasmineRequire.HtmlSpecFilter = function() {
+  // >>>LJ: 1. spec=all: run all; 2. no spec: disable all; 3. dont run "suite spec123" if spec="suite spec1"
   function HtmlSpecFilter(options) {
     var filterString = options && options.filterString() && options.filterString().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-    var filterPattern = new RegExp(filterString);
+    var filterPattern = (filterString && filterString != "all") && new RegExp('(^| )' + filterString + '( |$)');
 
     this.matches = function(specName) {
+      if (filterString == null)
+        return false;
+      if (filterString == "all")
+        return true;
       return filterPattern.test(specName);
     };
   }
