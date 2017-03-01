@@ -760,7 +760,8 @@ getJasmineRequireObj().Env = function(j$) {
           // >>> LJ: add param: suite
           reporter.suiteStarted(suite.result, suite);
           // >>> LJ: disable beforeAll/afterAll callback
-          if (suite.markedPending) {
+          if (suite.env.markedPending || suite.markedPending) {
+            suite.markedPending = true;
             suite.beforeAllFns = [];
             suite.afterAllFns = [];
           }
