@@ -526,12 +526,13 @@ namespace JDCloud
 			// TODO: check fields in metadata
 			// foreach ($_POST as ($field, $val))
 
-			if (ac == "add" || ac == "set") {
+			if (ac == "add" || ac == "set") 
+			{
 				if (this.readonlyFields != null)
 				{
 					foreach (var field in this.readonlyFields)
 					{
-						if (_POST[field] != null)
+						if (_POST[field] != null && !(ac == "add" && this.requiredFields.Contains(field)))
 						{
 							logit("!!! warn: attempt to chang readonly field `field`");
 							_POST.Remove(field);

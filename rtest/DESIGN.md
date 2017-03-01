@@ -66,7 +66,7 @@
 应用逻辑
 
 - 权限: AUTH_GUEST
-- 必填字段：ac
-- 只读字段：ac,tm
-- 隐藏字段：ua
+- 添加：tm自动填充为当前时间；ac必填(required)。
+- 更新：tm, ac不可更新(readonly)。
+- 获取：不返回ua(hidden).
 

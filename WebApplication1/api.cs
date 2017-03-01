@@ -91,8 +91,7 @@ namespace JDApi
 		public AC_ApiLog()
 		{
 			this.requiredFields = new List<string>(){"ac"};
-			this.readonlyFields = new List<string>(){"tm"};
-			this.readonlyFields2 = new List<string>(){"ac"};
+			this.readonlyFields = new List<string>(){"ac", "tm"};
 			this.hiddenFields = new List<string>(){"ua"};
 		}
 		protected override void onValidate()

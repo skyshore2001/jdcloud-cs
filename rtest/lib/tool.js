@@ -261,16 +261,18 @@ var myMatchers = {
 					if (! actual.hasOwnProperty(e))
 					{
 						ret.message = "Expected to have property: " + e;
-						return ret;
+						return false;
 					}
 					if (notNull && actual[e] == null)
 					{
 						ret.message = "Expected property " + e + " is null";
-						return ret;
+						return false;
 					}
 				});
-				ret.pass = true;
-				ret.message = "Expected NOT contains keys: " + expected.join(",");
+				if (ret.message == null) {
+					ret.pass = true;
+					ret.message = "Expected NOT contains keys: " + expected.join(",");
+				}
 				return ret;
 			}
 		}

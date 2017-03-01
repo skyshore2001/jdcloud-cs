@@ -6,7 +6,7 @@ describe("param函数", function() {
 
 	it("整型参数", function () {
 		var ret = callSvrSync("fn", {f: "param", name: "id", id: 99});
-		expect(ret).toBe(99);
+		expect(ret).toEqual(99);
 
 		ret = callSvrSync("fn", {f: "param", name: "id", id: '9a'});
 		expect(ret).toJDCallFail(E_PARAM);
@@ -15,19 +15,19 @@ describe("param函数", function() {
 	it("字符串型参数", function () {
 		var str = "jason smith";
 		var ret = callSvrSync("fn", {f: "param", name: "str", coll: "P"}, $.noop, {str: str});
-		expect(ret).toBe(str);
+		expect(ret).toEqual(str);
 	});
 
 	it("字符串型参数-防止XSS攻击", function () {
 		var str = "a&b";
 		var str2 = "a&amp;b";
 		var ret = callSvrSync("fn", {f: "param", name: "str", coll: "P"}, $.noop, {str: str});
-		expect(ret).toBe(str2);
+		expect(ret).toEqual(str2);
 	});
 
 	it("数值型参数", function () {
 		var ret = callSvrSync("fn", {f: "param", name: "amount/n", coll: 'P'}, $.noop, {amount: 99.9});
-		expect(ret).toBe(99.9);
+		expect(ret).toEqual(99.9);
 
 		ret = callSvrSync("fn", {f: "param", name: "amount/n", amount: '9a'});
 		expect(ret).toJDCallFail(E_PARAM);
@@ -35,7 +35,7 @@ describe("param函数", function() {
 
 	it("布尔型参数", function () {
 		var ret = callSvrSync("fn", {f: "param", name: "wantArray/b", wantArray: 1});
-		expect(ret).toBe(true);
+		expect(ret).toEqual(true);
 
 		var ret = callSvrSync("fn", {f: "param", name: "wantArray/b", wantArray: '1a'});
 		expect(ret).toJDCallFail(E_PARAM);
@@ -45,7 +45,7 @@ describe("param函数", function() {
 
 		var ret = callSvrSync("fn", {f: "param", name: "testDt/dt", testDt: dt.toISOString()});
 		// 服务端返回日期格式为 '/Date(1488124800000)/'
-		expect(typeof(ret) == "string").toBe(true);
+		expect(typeof(ret) == "string").toEqual(true);
 		ret = parseDate(ret);
 		expect(ret).toEqual(dt);
 
@@ -98,7 +98,7 @@ describe("数据库函数", function() {
 
 		var tmstr = formatDate(tm_);
 		var ret = callSvrSync("fn", {f: "execOne", sql: "INSERT INTO ApiLog (tm, addr) VALUES ('" + tmstr + "', '" + addr_ + "')", getNewId: true});
-		expect(typeof(ret) == "number").toBe(true);
+		expect(typeof(ret) == "number").toEqual(true);
 		id_ = ret;
 
 		want_ = {id: id_, tm: tm_, addr: addr_};
@@ -109,13 +109,13 @@ describe("数据库函数", function() {
 
 	it("queryAll", function () {
 		var ret = callSvrSync("fn", {f: "queryAll", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + id_, assoc: true});
-		expect($.isArray(ret) && $.isPlainObject(ret[0])).toBe(true);
+		expect($.isArray(ret) && $.isPlainObject(ret[0])).toEqual(true);
 		formatField(ret[0]);
 		expect(ret[0]).toEqual(want_);
 	});
 	it("queryAll-empty", function () {
 		var ret = callSvrSync("fn", {f: "queryAll", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=-1", assoc: true});
-		expect($.isArray(ret) && ret.length==0).toBe(true);
+		expect($.isArray(ret) && ret.length==0).toEqual(true);
 	});
 
 	it("queryOne", function () {
@@ -125,14 +125,14 @@ describe("数据库函数", function() {
 	});
 	it("queryOne-array", function () {
 		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + id_});
-		expect($.isArray(ret) && ret.length == 3).toBe(true);
+		expect($.isArray(ret) && ret.length == 3).toEqual(true);
 		var ret1 = array_combine(["id","tm","addr"], ret);
 		formatField(ret1);
 		expect(ret1).toEqual(want_);
 	});
 	it("queryOne-empty", function () {
 		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=-1"});
-		expect(ret).toBe(false);
+		expect(ret).toEqual(false);
 	});
 
 	it("queryOne-scalar", function () {
@@ -168,7 +168,7 @@ describe("登录及权限", function() {
 	function userLogout()
 	{
 		var ret = callSvrSync("logout");
-		//expect(ret).toBe("OK");
+		//expect(ret).toEqual("OK");
 		uid_ = null;
 	}
 
@@ -221,7 +221,7 @@ describe("对象型接口", function() {
 				tm: jasmine.any(Date)
 			}));
 			// ac未在res中指定，不应包含
-			expect(ret.ac).toBe(undefined);
+			expect(ret).not.toJDContainKey(["ac"]);
 			id_ = ret.id;
 		}
 	}
