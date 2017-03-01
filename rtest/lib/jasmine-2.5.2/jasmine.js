@@ -323,6 +323,7 @@ getJasmineRequireObj().Spec = function(j$) {
     this.queueRunnerFactory = attrs.queueRunnerFactory || function() {};
     this.catchingExceptions = attrs.catchingExceptions || function() { return true; };
     this.throwOnExpectationFailure = !!attrs.throwOnExpectationFailure;
+    this.suite = attrs.suite;
 
     if (!this.queueableFn.fn) {
       this.pend();
@@ -357,10 +358,14 @@ getJasmineRequireObj().Spec = function(j$) {
 
   Spec.prototype.execute = function(onComplete, enabled) {
     var self = this;
+    // >>> LJ: spec.context can be used in reporter.specStarted/specDone
+    this.context = this.userContext();
 
     this.onStart(this);
 
-    if (!this.isExecutable() || this.markedPending || enabled === false) {
+    // >>> LJ: support to stop execution 
+    if (!this.isExecutable() || this.suite.env.markedPending || this.suite.markedPending || this.markedPending || enabled === false) {
+      this.pend();
       complete(enabled);
       return;
     }
@@ -372,7 +377,7 @@ getJasmineRequireObj().Spec = function(j$) {
       queueableFns: allFns,
       onException: function() { self.onException.apply(self, arguments); },
       onComplete: complete,
-      userContext: this.userContext()
+      userContext: self.context
     });
 
     function complete(enabledAgain) {
@@ -380,8 +385,11 @@ getJasmineRequireObj().Spec = function(j$) {
       self.resultCallback(self.result);
 
       if (onComplete) {
-        onComplete();
+        // >>> LJ: use timeout to update browser UI.
+        setTimeout(onComplete);
+        //onComplete();
       }
+      self.context = null;
     }
   };
 
@@ -749,14 +757,20 @@ getJasmineRequireObj().Env = function(j$) {
         nodeStart: function(suite) {
           currentlyExecutingSuites.push(suite);
           defaultResourcesForRunnable(suite.id, suite.parentSuite.id);
-          reporter.suiteStarted(suite.result);
+          // >>> LJ: add param: suite
+          reporter.suiteStarted(suite.result, suite);
+          // >>> LJ: disable beforeAll/afterAll callback
+          if (suite.markedPending) {
+            suite.beforeAllFns = [];
+            suite.afterAllFns = [];
+          }
         },
         nodeComplete: function(suite, result) {
           if (!suite.disabled) {
             clearResourcesForRunnable(suite.id);
           }
           currentlyExecutingSuites.pop();
-          reporter.suiteDone(result);
+          reporter.suiteDone(result, suite);
         },
         orderChildren: function(node) {
           return order.sort(node.children);
@@ -920,7 +934,9 @@ getJasmineRequireObj().Env = function(j$) {
           fn: fn,
           timeout: function() { return timeout || j$.DEFAULT_TIMEOUT_INTERVAL; }
         },
-        throwOnExpectationFailure: throwOnExpectationFailure
+        throwOnExpectationFailure: throwOnExpectationFailure,
+        // >>> LJ: ref to suite
+        suite: suite
       });
 
       if (!self.specFilter(spec)) {
@@ -932,13 +948,14 @@ getJasmineRequireObj().Env = function(j$) {
       function specResultCallback(result) {
         clearResourcesForRunnable(spec.id);
         currentSpec = null;
-        reporter.specDone(result);
+        // >>> LJ: add param: spec
+        reporter.specDone(result, spec);
       }
 
       function specStarted(spec) {
         currentSpec = spec;
         defaultResourcesForRunnable(spec.id, suite.id);
-        reporter.specStarted(spec.result);
+        reporter.specStarted(spec.result, spec);
       }
     };
 
@@ -1024,6 +1041,11 @@ getJasmineRequireObj().Env = function(j$) {
         message: message,
         error: error && error.message ? error : null
       });
+    };
+
+    this.markedPending = false;
+    this.pend = function () {
+      this.markedPending = true;
     };
   }
 

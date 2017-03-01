@@ -269,30 +269,28 @@ var myMatchers = {
 
 */
 var myReporter = {
-	suiteStarted: function (result) {
+	suiteStarted: function (result, suite) {
 		this.specNo_ = 0;
-		if (! this.skipAll_)
-			g_data.skip = false;
 	},
-	suiteDone: function (result) {
-		if (++this.suiteNo_ == 1 && result.status == "failed")
-			this.skipAll_ = true;
+	suiteDone: function (result, suite) {
+		if (++this.suiteNo_ == 1 && this.skipSuite_)
+			jasmine.getEnv().pend();
 	},
 
-	specStarted: function (result) {
+	specStarted: function (result, spec) {
 		if (++ this.specNo_ == 1)
-			g_data.critical = true;
-		else
-			g_data.critical = false;
+			spec.context.critical = true;
 	},
-	specDone: function (result) {
-		if (g_data.critical && result.status == "failed")
-			g_data.skip = true;
+	specDone: function (result, spec) {
+		if (spec.context.critical && result.status == "failed") {
+			spec.suite.pend();
+		}
 	},
+
 	specNo_: 0,
 	suiteNo_: 0,
-	skipAll_: false
 };
 
 jasmine.getEnv().addReporter(myReporter);
+jasmine.getEnv().throwOnExpectationFailure(true);
 //jasmine.getEnv().addMatchers(myMatchers);
