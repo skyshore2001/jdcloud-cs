@@ -292,6 +292,23 @@ describe("对象型接口", function() {
 		// 只有一条
 		expect(ret.d.length).toEqual(1);
 	});
+	it("query操作-gres统计", function () {
+		//generalAdd();
+
+		var pagesz = 3;
+		var dt = new Date();
+		dt.setTime(dt - T_DAY*7); // 7天内按ac分组统计
+		var ret = callSvrSync("ApiLog.query", {gres:"ac", res:"count(*) cnt, sum(id) fakeSum", cond: "tm>='" + formatDate(dt) + "' and ac IS NOT NULL", orderby: "cnt desc", _pagesz: pagesz});
+		expect(ret).toJDTable(["ac", "cnt", "fakeSum"]);
+	});
+	xit("query操作-gres统计-中文", function () {
+		var pagesz = 3;
+		var dt = new Date();
+		dt.setTime(dt - T_DAY*7); // 7天内按ac分组统计
+		//var ret = callSvrSync("ApiLog.query", {gres:"ac \"动作\"", res:"count(*) \"总数\", sum(id) \"总和\"", cond: "tm>='" + formatDate(dt) + "'", orderby: "\"总数\" desc"});
+		var ret = callSvrSync("ApiLog.query", {gres:"ac 动作", res:"count(*) 总数, sum(id) 总和", cond: "tm>='" + formatDate(dt) + "'", orderby: "总数 desc", _pagesz: pagesz});
+		expect(ret).toJDTable(["动作", "总数", "总和"]);
+	});
 	it("query操作-list", function () {
 		generalAdd();
 
@@ -309,5 +326,56 @@ describe("对象型接口", function() {
 		// 不包含"ua"属性
 		expect(ret.list[0].hasOwnProperty("ua")).toBeFalsy();
 	});
+	xit("query操作-导出txt");
+	xit("query操作-导出csv");
+	xit("query操作-导出excel");
+
+	it("del操作", function () {
+		generalAdd();
+
+		var ret = callSvrSync("ApiLog.del", {id: id_});
+		expect(ret).toEqual("OK");
+
+		var ret = callSvrSync("ApiLog.get", {id: id_});
+		expect(ret).toJDRet(E_PARAM);
+	});
 })
 
+describe("对象型接口-异常", function() {
+	it("id不存在", function () {
+		$.each(["get", "set", "del"], function () {
+			var ret = callSvrSync("ApiLog." + this);
+			expect(ret).toJDRet(E_PARAM);
+
+			if (this != "set") {
+				var ret = callSvrSync("ApiLog." + this, {id: -9});
+				expect(ret).toJDRet(E_PARAM);
+			}
+		});
+	});
+
+	it("表不存在", function () {
+		var ret = callSvrSync("ApiLog123.query");
+		expect(ret).toJDRet(E_PARAM);
+	});
+
+	it("操作不存在", function () {
+		var ret = callSvrSync("ApiLog.cancel");
+		expect(ret).toJDRet(E_PARAM);
+	});
+
+	it("字段不存在", function () {
+		var ret = callSvrSync("ApiLog.query", {res: "id,id123"});
+		expect(ret).toJDRet(E_DB);
+	});
+
+	it("限制cond", function () {
+		var ret = callSvrSync("ApiLog.query", {cond: "userId in (SELECT id FROM User)"});
+		expect(ret).toJDRet(E_FORBIDDEN);
+	});
+
+	it("限制res", function () {
+		var ret = callSvrSync("ApiLog.query", {res: "Max(id) maxId"});
+		expect(ret).toJDRet(E_FORBIDDEN);
+	});
+});

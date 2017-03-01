@@ -25,7 +25,7 @@ function getErrName(e)
 	return e;
 }
 
-var T_HOUR = 3600;
+var T_HOUR = 3600 * 1000;
 var T_DAY = T_HOUR*24;
 
 // return: null/undefined - ignore processing; data - pre-processed app-level return; false - app-level failure handled by caller (and this.lastError=[code, msg, info?])
