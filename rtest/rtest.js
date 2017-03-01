@@ -9,7 +9,7 @@ describe("param函数", function() {
 		expect(ret).toEqual(99);
 
 		ret = callSvrSync("fn", {f: "param", name: "id", id: '9a'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("字符串型参数", function () {
@@ -30,7 +30,7 @@ describe("param函数", function() {
 		expect(ret).toEqual(99.9);
 
 		ret = callSvrSync("fn", {f: "param", name: "amount/n", amount: '9a'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("布尔型参数", function () {
@@ -38,7 +38,7 @@ describe("param函数", function() {
 		expect(ret).toEqual(true);
 
 		var ret = callSvrSync("fn", {f: "param", name: "wantArray/b", wantArray: '1a'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 	it("日期型参数", function () {
 		var dt = new Date();
@@ -50,7 +50,7 @@ describe("param函数", function() {
 		expect(ret).toEqual(dt);
 
 		var ret = callSvrSync("fn", {f: "param", name: "testDt/dt", testDt: 'today'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("i+类型", function () {
@@ -58,7 +58,7 @@ describe("param函数", function() {
 		expect(ret).toEqual([3,4,5]);
 
 		var ret = callSvrSync("fn", {f: "param", name: "idList/i+", idList: '3;4;5'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 	xit("压缩表类型", function () {
 		var ret = callSvrSync("fn", {f: "param", name: "items/i:n:s", items: "100:1:洗车,101:1:打蜡"});
@@ -68,7 +68,7 @@ describe("param函数", function() {
 		expect(ret).toEqual([ [100, 1.0, null], [101, null, "打蜡"]]);
 
 		var ret = callSvrSync("fn", {f: "param", name: "items/i:n:s", items: '100:1,101:2'});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("mparam", function () {
@@ -76,7 +76,7 @@ describe("param函数", function() {
 		expect(ret).toEqual(99);
 
 		ret = callSvrSync("fn", {f: "mparam", name: "id", id: 99, coll: "P"});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 });
 
@@ -142,7 +142,7 @@ describe("数据库函数", function() {
 
 	it("执行错误", function () {
 		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT FROM ApiLog WHERE id=" + id_, assoc: true});
-		expect(ret).toJDCallFail(E_DB);
+		expect(ret).toJDRet(E_DB);
 	});
 });
 
@@ -174,12 +174,12 @@ describe("登录及权限", function() {
 
 	it("不存在的接口", function () {
 		var ret = callSvrSync("xxx_no_method");
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("未登录时调用要求登录的接口", function () {
 		var ret = callSvrSync("whoami");
-		expect(ret).toJDCallFail(E_NOAUTH);
+		expect(ret).toJDRet(E_NOAUTH);
 	});
 
 	it("login", function () {
@@ -221,7 +221,7 @@ describe("对象型接口", function() {
 				tm: jasmine.any(Date)
 			}));
 			// ac未在res中指定，不应包含
-			expect(ret).not.toJDContainKey(["ac"]);
+			expect(ret).not.toJDObj(["ac"]);
 			id_ = ret.id;
 		}
 	}
@@ -235,15 +235,15 @@ describe("对象型接口", function() {
 	it("add操作-必填字段", function () {
 		// ac为必填字段
 		var ret = callSvrSync("ApiLog.add", $.noop, {addr: "my addr"});
-		expect(ret).toJDCallFail(E_PARAM);
+		expect(ret).toJDRet(E_PARAM);
 	});
 
 	it("get操作", function () {
 		generalAdd();
 		var ret = callSvrSync("ApiLog.get", {id: id_});
-		expect(ret).toJDContainKey(["id", "addr", "ac", "tm"], true);
+		expect(ret).toJDObj(["id", "addr", "ac", "tm"], true);
 		// ua是隐藏字段，不应返回
-		expect(ret).not.toJDContainKey(["ua"]);
+		expect(ret).not.toJDObj(["ua"]);
 	});
 
 	it("get操作-res", function () {
@@ -264,6 +264,50 @@ describe("对象型接口", function() {
 		// ac,tm是只读字段，设置无效。应该仍为当前日期
 		expect(ret).toEqual({ac: postParam_.ac, addr: newAddr, tm: jasmine.any(Date)});
 		expect(ret.tm.getFullYear()).toEqual(new Date().getFullYear());
+	});
+
+	it("query操作", function () {
+		generalAdd();
+
+		var pagesz = 3;
+		var ret = callSvrSync("ApiLog.query", {_pagesz: pagesz});
+		expect(ret).toJDTable(["id", "ac", "addr", "tm"]);
+		// 至少有一条
+		expect(ret.d.length).toBeGreaterThan(0);
+		if (ret.nextkey) {
+			expect(ret.d.length).toEqual(pagesz);
+		}
+		else {
+			expect(ret.d.length).toBeLessThanOrEqual(pagesz);
+		}
+		// 不包含"ua"属性
+		expect(ret.h).not.toContain("ua");
+	});
+	it("query操作-res/cond", function () {
+		generalAdd();
+
+		var pagesz = 3;
+		var ret = callSvrSync("ApiLog.query", {_pagesz: pagesz, res: "id,ac", cond: "id=" + id_});
+		expect(ret).toEqual({h: ["id", "ac"], d: jasmine.any(Array)});
+		// 只有一条
+		expect(ret.d.length).toEqual(1);
+	});
+	it("query操作-list", function () {
+		generalAdd();
+
+		var pagesz = 3;
+		var ret = callSvrSync("ApiLog.query", {_pagesz: pagesz, _fmt: "list"});
+		expect(ret).toJDList(["id", "ac", "addr", "tm"]);
+		// 至少有一条
+		expect(ret.list.length).toBeGreaterThan(0);
+		if (ret.nextkey) {
+			expect(ret.list.length).toEqual(pagesz);
+		}
+		else {
+			expect(ret.list.length).toBeLessThanOrEqual(pagesz);
+		}
+		// 不包含"ua"属性
+		expect(ret.list[0].hasOwnProperty("ua")).toBeFalsy();
 	});
 })
 

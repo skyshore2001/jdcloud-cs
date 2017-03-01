@@ -406,6 +406,42 @@ namespace JDCloud
 				return true;
 			return false;
 		}
+
+		public JsObject objarr2table(JsArray rs, int fixedColCnt=-1)
+		{
+			var h = new JsArray();
+			var d = new JsArray();
+			var ret = new JsObject() {
+				{"h", h}, {"d", d}
+			};
+			if (rs.Count == 0)
+				return ret;
+
+			JsObject row0 = rs[0] as JsObject;
+			h.AddRange(row0.Keys);
+			if (fixedColCnt >= 0) {
+				/*
+				TODO
+				foreach (rs as row) {
+					h1 = array_keys(row);
+					for (i=fixedColCnt; i<count(h1); ++i) {
+						if (array_search(h1[i], h) === false) {
+							h[] = h1[i];
+						}
+					}
+				}
+				*/
+			}
+			foreach (JsObject row in rs) {
+				var arr = new JsArray();
+				d.Add(arr);
+				foreach (string k in h) {
+					arr.Add(row[k]);
+				}
+			}
+			return ret;
+		}
+
 	}
 
 	public class VcolDef
@@ -1058,30 +1094,29 @@ namespace JDCloud
 				}
 			}
 
-			var retArr = queryAll(sql.ToString(), true);
+			var objArr = queryAll(sql.ToString(), true);
 
 			// Note: colCnt may be changed in after().
-			int fixedColCnt = retArr.Count()==0? 0: (retArr[0] as JsObject).Count();
-			object reto = retArr;
+			int fixedColCnt = objArr.Count()==0? 0: (objArr[0] as JsObject).Count();
+			object reto = objArr;
 			this.after(ref reto);
 
 			object nextkey = null;
-			if (pagesz == retArr.Count) { // 还有下一页数据, 添加nextkey
+			if (pagesz == objArr.Count) { // 还有下一页数据, 添加nextkey
 				// TODO: res参数中没有指定id时?
 				if (enablePartialQuery) {
-					nextkey = (retArr.Last() as JsObject)["id"];
+					nextkey = (objArr.Last() as JsObject)["id"];
 				}
 				else {
 					nextkey = pagekey + 1;
 				}
 			}
-			//TODO: ret = objarr2table(ret, fixedColCnt);
-			foreach (var mainObj in retArr) {
+			foreach (var mainObj in objArr) {
+				/* TODO
 				object id1;
 				if ((mainObj as JsObject).TryGetValue("id", out id1))
 				{
 				}
-				/* TODO
 				if (id1 != null)
 					handleSubObj(sqlConf.subobj, id1, mainObj);
 				*/
@@ -1089,13 +1124,12 @@ namespace JDCloud
 			string fmt = param("_fmt") as string;
 			JsObject ret = null;
 			// TODO: format
-			//if ((string)fmt == "list") {
-				ret = new JsObject() { { "list", retArr } };
-			//}
-			//else {
-				//TODO
-				//ret = objarr2table(ret, fixedColCnt);
-			//}
+			if (fmt == "list") {
+				ret = new JsObject() { { "list", objArr } };
+			}
+			else {
+				ret = objarr2table(objArr, fixedColCnt);
+			}
 			if (nextkey != null) {
 				ret["nextkey"] = nextkey;
 			}

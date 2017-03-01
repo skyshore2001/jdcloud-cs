@@ -208,70 +208,158 @@ function array_combine(a, b)
 	return ret;
 }
 
+function assert(cond, errmsg)
+{
+	if (! cond)
+		throw errmsg;
+}
+
+var JDUtil = {
+	validateRet: function (ret, expectedCode) {
+		if (expectedCode == 0) {
+			assert(ret !== false, "Expected successful call");
+		}
+		else {
+			assert(ret === false, "Expected fail code to be " + getErrName(expectedCode) + ", actual successful");
+			assert(g_data.lastError[0] == expectedCode, "Expected fail code to be " + getErrName(expectedCode) + ", actual " + getErrName(g_data.lastError[0]));
+		}
+	},
+	/*
+	// field中以"*"开头表示不可为null
+	// return : @fields={name, notNull}
+	parseFields: function (fields) {
+		$.map(fields, function () {
+			var notNull = e[0] == "*";
+			if (notNull) {
+			}
+		});
+	},
+	*/
+	validateTable: function (obj, fields) {
+		assert($.isPlainObject(obj) && $.isArray(obj.h) && $.isArray(obj.d), "Expected jdcloud table format `{h, d}`, actual " + JSON.stringify(obj));
+
+		if (obj.d.length > 0) {
+			$.each(fields, function (i, e) {
+				var idx = obj.h.indexOf(e);
+				assert(idx >=0, "Expected table field `" + e + "`");
+			});
+		}
+		var cnt = obj.h.length;
+		$.each(obj.d, function (i, e) {
+			assert($.isArray(e), "Row " + i + " is NOT an array");
+			assert(e.length == cnt, "Expected column count=" + cnt + ", actual count=" + e.length + " (row " + i + ")");
+		});
+	},
+	validateList: function (obj, fields) {
+		assert($.isPlainObject(obj) && $.isArray(obj.list), "Expected JDList: `{list}`, actual " + JSON.stringify(obj));
+		this.validateObjArray(obj.list, fields);
+	},
+	validateObj: function (obj, fields, notNull) {
+		assert($.isPlainObject(obj), "Expected a plain object, actual " + JSON.stringify(obj));
+
+		$.each (fields, function (i, e) {
+			assert(obj.hasOwnProperty(e), "Expected object to have property: `" + e + "`");
+			if (notNull) {
+				assert(obj[e] != null, "Object property `" + e + "` is NOT null");
+			}
+		});
+	},
+	validateObjArray: function (obj, fields) {
+		assert($.isArray(obj), "Expected obj array, actual " + JSON.stringify(obj));
+		$.each(obj, function (i, e) {
+			JDUtil.validateObj(e, fields);
+		});
+	}
+};
+
+function rs2Array(rs)
+{
+	var ret = [];
+	var colCnt = rs.h.length;
+
+	for (var i=0; i<rs.d.length; ++i) {
+		var obj = {};
+		var row = rs.d[i];
+		for (var j=0; j<colCnt; ++j) {
+			obj[rs.h[j]] = row[j];
+		}
+		ret.push(obj);
+	}
+	return ret;
+}
+
 /**
 @var myMatchers
 
-扩展断言。应以 toJD 开头。
+扩展断言。
 
-初始化：
-
-	beforeEach(function() {
-		jasmine.addMatchers(myMatchers);
-	});
-
-使用：
+在myReporter中已初始化，可直接在it块中使用。
 
 	ret = callSvrSync("param", {name: "id", id: '9a'});
-	expect(ret).toJDCallFail(E_PARAM);
+	expect(ret).toJDRet(E_PARAM);
 
  */
 var myMatchers = {
-	toJDCallFail: function (util, testers) {
+	toJDRet: function (util, testers) {
 		return {
 			compare: function (actual, expected) {
 				var ret = {pass: false, message: null}
-				if (actual === false) {
-					if (g_data.lastError[0] == expected) {
-						ret.pass = true;
-						ret.message = "Expected fail code NOT to be " + getErrName(expected);
-					}
-					else {
-						ret.message = "Expected fail code to be " + getErrName(expected) + ", actual " + getErrName(g_data.lastError[0]);
-					}
+				try {
+					JDUtil.validateRet(actual, expected);
+					ret.pass = true;
+					ret.message = "Expected fail code NOT to be " + getErrName(expected);
 				}
-				else {
-					ret.message = "Expected fail code to be " + getErrName(expected) + ", actual successful";
+				catch (ex) {
+					ret.message = ex;
 				}
 				return ret;
 			}
 		}
 	},
-	toJDContainKey: function (util, testers) {
+	toJDObj: function (util, testers) {
 		return {
 			// notNull?=false
-			compare: function (actual, expected, notNull) {
+			compare: function (actual, fields, notNull) {
 				var ret = {pass: false, message: null}
-				if (! $.isPlainObject(actual))
-				{
-					ret.message = "Expected a plain object";
-					return ret;
-				}
-
-				$.each (expected, function (i, e) {
-					if (! actual.hasOwnProperty(e))
-					{
-						ret.message = "Expected to have property: " + e;
-						return false;
-					}
-					if (notNull && actual[e] == null)
-					{
-						ret.message = "Expected property " + e + " is null";
-						return false;
-					}
-				});
-				if (ret.message == null) {
+				try {
+					JDUtil.validateObj(actual, fields, notNull);
 					ret.pass = true;
-					ret.message = "Expected NOT contains keys: " + expected.join(",");
+					// ret.message = "Expected NOT an object with keys: " + fields.join(',');
+				}
+				catch (ex) {
+					ret.message = ex;
+				}
+				return ret;
+			}
+		}
+	},
+	toJDTable: function (util, testers) {
+		return {
+			compare: function (actual, fields) {
+				var ret = {pass: false, message: null};
+				try {
+					JDUtil.validateTable(actual, fields);
+					ret.pass = true;
+					//ret.message = "Expected NOT JDList";
+				}
+				catch (ex) {
+					ret.message = ex;
+				}
+				return ret;
+			}
+		}
+	},
+	toJDList: function (util, testers) {
+		return {
+			compare: function (actual, fields) {
+				var ret = {pass: false, message: null};
+				try {
+					JDUtil.validateList(actual, fields);
+					ret.pass = true;
+					//ret.message = "Expected NOT JDList";
+				}
+				catch (ex) {
+					ret.message = ex;
 				}
 				return ret;
 			}

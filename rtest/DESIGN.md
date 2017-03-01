@@ -63,6 +63,28 @@
 
 	ApiLog.set(id)(fields...)
 
+	ApiLog.del(id)
+
+	查询
+	ApiLog.query(res, cond, orderby) -> tbl(id,...) ={h, d, nextkey?}
+
+	分页
+	ApiLog.query(_pagesz, _pagekey?) -> {h, d, nextkey?}
+	ApiLog.query(_pagesz, _pagekey=0) -> {h, d, nextkey?, total}
+
+	统计
+	ApiLog.query(gres, cond) -> {h, d, nextkey?}
+
+	格式化
+	ApiLog.query(_fmt=list) -> {list, nextkey?}
+	ApiLog.query(_fmt=csv) -> csv格式
+
+	jquery-easyui支持
+	分页：必返回total字段
+	ApiLog.query(page, rows) -> {h, d, nextkey?, total}
+	排序：
+	ApiLog.query(sort, order) = ApiLog.query(orderby="{sort} {order}")
+
 应用逻辑
 
 - 权限: AUTH_GUEST
