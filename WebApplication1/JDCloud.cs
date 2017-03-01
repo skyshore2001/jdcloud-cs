@@ -44,6 +44,57 @@ namespace JDCloud
 		}
 	}
 
+	public class JDEnv
+	{
+		private SSTk.DbConn cnn_;
+		public SSTk.DbConn cnn
+		{
+			get {
+				dbconn();
+				return cnn_;
+			}
+		}
+
+		//public static
+		public void dbconn()
+		{
+			// TODO: from conf.user.php
+			if (cnn_ == null)
+			{
+				cnn_ = new SSTk.DbConn();
+				cnn_.Open(SSTk.DbConnType.Odbc, "mytest", "", "");
+				cnn_.BeginTransaction();
+			}
+		}
+
+		public HttpContext ctx;
+		public NameValueCollection _GET, _POST, _REQUEST;
+
+		public JDEnv(HttpContext ctx)
+		{
+			this.ctx = ctx;
+			this._GET = new NameValueCollection(ctx.Request.QueryString);
+			this._POST = new NameValueCollection(ctx.Request.Form);
+			this._REQUEST = new NameValueCollection(_POST);
+			foreach (string k in _GET)
+			{
+				_REQUEST[k] = _GET[k];
+			}
+		}
+
+		public void Close(bool ok)
+		{
+			if (cnn_ != null)
+			{
+				if (ok)
+					cnn_.Commit();
+				else
+					cnn_.Rollback();
+				cnn_.Dispose();
+			}
+		}
+	}
+
 	public class JDApiBase
 	{
 		public const int E_ABORT = -100;
@@ -61,6 +112,28 @@ namespace JDCloud
 		public const int AUTH_EMP = 0x2;
 		public const int AUTH_LOGIN = AUTH_USER | AUTH_EMP;
 
+		public JDEnv env;
+		public NameValueCollection _GET 
+		{
+			get { return env._GET;}
+		}
+		public NameValueCollection _POST
+		{
+			get { return env._POST;}
+		}
+		public NameValueCollection _REQUEST
+		{
+			get { return env._REQUEST;}
+		}
+		public NameValueCollection _SERVER
+		{
+			get { return env.ctx.Request.ServerVariables;}
+		}
+		public HttpSessionState _SESSION
+		{
+			get { return env.ctx.Session;}
+		}
+
 		public static readonly Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
 			{ E_AUTHFAIL, "认证失败" },
 			{ E_PARAM, "参数不正确" },
@@ -75,33 +148,6 @@ namespace JDCloud
 			if (ERRINFO.ContainsKey(code))
 				return ERRINFO[code];
 			return "未知错误";
-		}
-
-		private HttpContext ctx_;
-		public HttpContext ctx
-		{
-			get
-			{
-				return ctx_;
-			}
-			set
-			{
-				this.ctx_ = value;
-				this._GET = ctx.Request.QueryString;
-				this._POST = ctx.Request.Form;
-				this._REQUEST = ctx.Request.Params;
-				this._SERVER = ctx.Request.ServerVariables;
-			}
-		}
-		public NameValueCollection _GET, _POST, _REQUEST, _SERVER;
-		
-		private SSTk.DbConn cnn_;
-		public SSTk.DbConn cnn
-		{
-			get {
-				dbconn();
-				return cnn_;
-			}
 		}
 
 		private string parseType_(ref string name)
@@ -232,16 +278,6 @@ namespace JDCloud
 				throw new MyException(E_PARAM, "require param `" + name + "`");
 			return val;
 		}
-		//public static
-		public void dbconn()
-		{
-			// TODO: from conf.user.php
-			if (cnn_ == null)
-			{
-				cnn_ = new SSTk.DbConn();
-				cnn_.Open(SSTk.DbConnType.Odbc, "mytest", "", "");
-			}
-		}
 
 		public static string Q(string s)
 		{
@@ -276,7 +312,7 @@ namespace JDCloud
 		// 每一项是JsArray或JsObject(assoc=true)
 		public JsArray queryAll(string sql, bool assoc = false)
 		{
-			DbDataReader rd = cnn.ExecQuery(sql);
+			DbDataReader rd = env.cnn.ExecQuery(sql);
 			var ret = new JsArray();
 			if (rd.HasRows)
 			{
@@ -292,7 +328,7 @@ namespace JDCloud
 		// can cast to JsObject or JsArray. 如果assoc=false且只有一列，直接返回数据。(相当于queryScalar)
 		public object queryOne(string sql, bool assoc = false)
 		{
-			DbDataReader rd = cnn.ExecQuery(sql);
+			DbDataReader rd = env.cnn.ExecQuery(sql);
 			object ret = null;
 			if (rd.HasRows)
 			{
@@ -309,12 +345,12 @@ namespace JDCloud
 		}
 		public object queryScalar(string sql)
 		{
-			return cnn.ExecScalar(sql);
+			return env.cnn.ExecScalar(sql);
 		}
 
 		public int execOne(string sql, bool getNewId = false)
 		{
-			int ret = cnn.ExecNonQuery(sql);
+			int ret = env.cnn.ExecNonQuery(sql);
 			if (getNewId)
 			{
 				ret = getLastInsertId();
@@ -325,7 +361,7 @@ namespace JDCloud
 		// TODO: now just mysql; mssql uses "SELECT SCOPE_IDENTITY()" or "SELECT @@IDENTITY"
 		public int getLastInsertId()
 		{
-			object ret = cnn.ExecScalar("SELECT LAST_INSERT_ID()");
+			object ret = env.cnn.ExecScalar("SELECT LAST_INSERT_ID()");
 			return Convert.ToInt32(ret);
 		}
 
@@ -347,7 +383,7 @@ namespace JDCloud
 		protected int onGetPerms()
 		{
 			int perms = 0;
-			if (ctx.Session["uid"] != null)
+			if (env.ctx.Session["uid"] != null)
 				perms |= AUTH_USER;
 
 			return perms;
@@ -510,7 +546,7 @@ namespace JDCloud
 							if (_POST[field] != null)
 							{
 								logit("!!! warn: attempt to change readonly field `field`");
-								ctx.Request.Form.Remove(field);
+								_POST.Remove(field);
 							}
 						}
 					}
@@ -916,6 +952,7 @@ namespace JDCloud
 		// return: JsObject
 		public virtual object api_get()
 		{
+			this.addCond("t0.id=" + this.id, true);
 			StringBuilder sql = genQuerySql();
 			object ret = queryOne(sql.ToString(), true);
 			if (ret == null) 
@@ -1253,17 +1290,19 @@ namespace JDCloud
 		public void ProcessRequest(HttpContext context)
 		{
 			var ret = new List<object>() {0, null};
+			bool ok = false;
+			JDEnv env = new JDEnv(context);
+			this.env = env;
 			try
 			{
 				string path = context.Request.Path;
 				Match m = Regex.Match(path, @"api/+((\w+)(?:\.(\w+))?)$");
 				//Match m = Regex.Match(path, @"api/(\w+)");
-				if (! m.Success)
+				if (!m.Success)
 					throw new MyException(E_PARAM, "bad ac");
 				// TODO: 测试模式允许跨域
 				string origin;
-				this.ctx = context;
-				if ((origin=_SERVER["HTTP_ORIGIN"]) != null)
+				if ((origin = _SERVER["HTTP_ORIGIN"]) != null)
 				{
 					context.Response.AddHeader("Access-Control-Allow-Origin", origin);
 					context.Response.AddHeader("Access-Control-Allow-Credentials", "true");
@@ -1296,7 +1335,7 @@ namespace JDCloud
 				MethodInfo mi = t.GetMethod(methodName);
 				if (mi == null)
 					throw new MyException(E_PARAM, "bad ac=`" + ac + "` (no method)");
-				obj.ctx = context;
+				obj.env = env;
 				if (clsName == "Global")
 				{
 					ret[1] = mi.Invoke(obj, null);
@@ -1317,8 +1356,13 @@ namespace JDCloud
 				}
 				if (ret[1] == null)
 					ret[1] = "OK";
+				ok = true;
 			}
-			catch(MyException ex)
+			catch (DirectReturn)
+			{
+				ok = true;
+			}
+			catch (MyException ex)
 			{
 				ret[0] = ex.Code;
 				ret[1] = ex.Message;
@@ -1338,12 +1382,13 @@ namespace JDCloud
 				}
 				else
 				{
-					ret[0] = ex1 is DbException? E_DB: E_SERVER;
+					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
 					ret[1] = GetErrInfo((int)ret[0]);
 					// TODO: test mode
 					ret.Add(ex1.Message);
 				}
 			}
+			env.Close(ok);
 
 			var ser = new JavaScriptSerializer();
 			//ser.Serialize(ser);

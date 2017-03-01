@@ -33,6 +33,7 @@ namespace SSTk
     public class DbConn: IDbConnection
     {
         private DbConnection m_conn;
+		public DbTransaction Trans;
         public DbConnection DbConnection { get { return m_conn; } }
 
 #region implement IDbConnection
@@ -43,8 +44,8 @@ namespace SSTk
         public int ConnectionTimeout { get {return m_conn.ConnectionTimeout;} }
         public string Database { get { return m_conn.Database; } }
         public ConnectionState State { get { return m_conn.State; } }
-        public IDbTransaction BeginTransaction() { return m_conn.BeginTransaction();}
-        public IDbTransaction BeginTransaction(IsolationLevel il) { return m_conn.BeginTransaction(il);}
+		public IDbTransaction BeginTransaction() { Trans = m_conn.BeginTransaction(); return Trans; }
+		public IDbTransaction BeginTransaction(IsolationLevel il) { Trans = m_conn.BeginTransaction(il); return Trans; }
         public void ChangeDatabase(string databaseName) { m_conn.ChangeDatabase(databaseName); }
         public void Close() { m_conn.Close(); }
         public IDbCommand CreateCommand() { return m_conn.CreateCommand(); }
@@ -115,18 +116,21 @@ namespace SSTk
         public DbDataReader ExecQuery(string sql)
         {
             DbCommand cmd = m_conn.CreateCommand();
+			cmd.Transaction = Trans;
             cmd.CommandText = sql;
             return cmd.ExecuteReader();
         }
         public int ExecNonQuery(string sql)
         {
             DbCommand cmd = m_conn.CreateCommand();
+			cmd.Transaction = Trans;
             cmd.CommandText = sql;
             return cmd.ExecuteNonQuery();
         }
         public object ExecScalar(string sql)
         {
             DbCommand cmd = m_conn.CreateCommand();
+			cmd.Transaction = Trans;
             cmd.CommandText = sql;
             return cmd.ExecuteScalar();
         }
@@ -156,5 +160,25 @@ namespace SSTk
             da.Fill(tbl);
             return tbl;
         }
+
+		public void Commit()
+		{
+			if (Trans != null)
+			{
+				Trans.Commit();
+				Trans.Dispose();
+				Trans = null;
+			}
+		}
+
+		public void Rollback()
+		{
+			if (Trans != null)
+			{
+				Trans.Rollback();
+				Trans.Dispose();
+				Trans = null;
+			}
+		}
     }
 }

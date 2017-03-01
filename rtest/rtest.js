@@ -1,8 +1,8 @@
+// doc: https://jasmine.github.io/2.5/introduction
+
 describe("工具函数", function() {
 beforeEach(function() {
 	jasmine.addMatchers(myMatchers);
-	if (g_data.skip)
-		pending();
 });
 
 describe("param函数", function() {
@@ -150,6 +150,8 @@ describe("数据库函数", function() {
 });
 
 
+});
+
 describe("登录及权限", function() {
 	var uname_ = "jdcloud", pwd_ = "1234";
 	var uid_;
@@ -194,5 +196,60 @@ describe("登录及权限", function() {
 	});
 })
 
+describe("对象型接口", function() {
+beforeEach(function() {
+	jasmine.addMatchers(myMatchers);
 });
+	var id_;
+	var postParam_; // {ac, addr}
+
+	function generalAdd(withRes)
+	{
+		if (id_ != null)
+			return;
+
+		var rd = Math.random();
+		postParam_ = {ac: "ApiLog.add", addr: "test-addr" + rd};
+		var param = {};
+		if (withRes) {
+			param.res = "id,addr,tm";
+		}
+		var ret = callSvrSync("ApiLog.add", param, $.noop, postParam_);
+
+		if (!withRes) {
+			expect(ret).toEqual(jasmine.any(Number));
+			id_ = ret;
+		}
+		else {
+			expect(ret).toEqual(jasmine.objectContaining({
+				id: jasmine.any(Number),
+				addr: postParam_.addr,
+				tm: jasmine.any(Date)
+			}));
+			// ac未在res中指定，不应包含
+			expect(ret.ac).toBe(undefined);
+			id_ = ret.id;
+		}
+	}
+
+	it("add操作", function () {
+		generalAdd();
+	});
+	xit("add操作-res", function () {
+		generalAdd(true);
+	});
+
+	it("get操作", function () {
+		generalAdd();
+		var ret = callSvrSync("ApiLog.get", {id: id_});
+		expect(ret).toJDContainKey(["id", "addr", "ac", "tm"], true);
+	});
+
+	it("get操作-res", function () {
+		generalAdd();
+		var ret = callSvrSync("ApiLog.get", {id: id_, res: "id,addr,tm"});
+		formatField(ret);
+		expect(ret).toEqual({id: id_, addr: postParam_.addr, tm: jasmine.any(Date)});
+	});
+})
 

@@ -63,7 +63,7 @@ namespace JDApi
 			var uname = mparam("uname") as string;
 			var pwd = mparam("pwd") as string;
 			var id = 1001;
-			ctx.Session["uid"] = 1001;
+			_SESSION["uid"] = 1001;
 			return new JsObject() {
 				{"id", id}
 			};
@@ -72,7 +72,7 @@ namespace JDApi
 		public object api_whoami()
 		{
 			checkAuth(AUTH_USER);
-			var uid = (int)ctx.Session["uid"];
+			var uid = (int)_SESSION["uid"];
 			return new JsObject()
 			{
 				{"id", uid}
@@ -81,13 +81,20 @@ namespace JDApi
 		public void api_logout()
 		{
 			// checkAuth(AUTH_LOGIN);
-			if (ctx.Session != null)
-				ctx.Session.Abandon();
+			if (_SESSION != null)
+				_SESSION.Abandon();
 		}
 	}
 
 	public class AC_ApiLog : AccessControl
 	{
+		protected override void onValidate()
+		{
+			if (this.ac == "add")
+			{
+				_POST["tm"] = DateTime.Now.ToString();
+			}
+		}
 	}
 
 	public class AC_Ordr : AccessControl

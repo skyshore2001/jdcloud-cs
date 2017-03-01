@@ -33,6 +33,26 @@
 
 ## 函数型接口
 
+实现下列接口，并定义用户登录权限。
+
 	login(uname, pwd) -> {id}
 	whoami() -> {id}
 	logout
+
+其中login接口应初始化权限；whoami接口检查权限：
+
+	whoami
+
+	- 权限：AUTH_USER
+	- 返回与login相同的内容。
+
+	
+## 对象型接口
+
+### 基本CRUD
+
+#### add接口
+
+	ApiLog.add()(ac, tm?, addr?=test_addr) -> id
+	ApiLog.add(res)(ac, tm?, addr?=test_addr) -> {按res指定返回}
+

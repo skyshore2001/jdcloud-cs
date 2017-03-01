@@ -245,6 +245,35 @@ var myMatchers = {
 				return ret;
 			}
 		}
+	},
+	toJDContainKey: function (util, testers) {
+		return {
+			// notNull?=false
+			compare: function (actual, expected, notNull) {
+				var ret = {pass: false, message: null}
+				if (! $.isPlainObject(actual))
+				{
+					ret.message = "Expected a plain object";
+					return ret;
+				}
+
+				$.each (expected, function (i, e) {
+					if (! actual.hasOwnProperty(e))
+					{
+						ret.message = "Expected to have property: " + e;
+						return ret;
+					}
+					if (notNull && actual[e] == null)
+					{
+						ret.message = "Expected property " + e + " is null";
+						return ret;
+					}
+				});
+				ret.pass = true;
+				ret.message = "Expected NOT contains keys: " + expected.join(",");
+				return ret;
+			}
+		}
 	}
 };
 
