@@ -285,13 +285,8 @@ var myMatchers = {
 
 初始化：
 
-	beforeEach(function() {
-		if (g_data.skip)
-			pending();
-	});
-
 	it ("critical case", function () {
-		g_data.critical = true;
+		this.critical = true;
 		// 一旦失败则取消suite中其它case执行
 		// suite中第一个case自动设置为critical
 	});
@@ -300,9 +295,10 @@ var myMatchers = {
 var myReporter = {
 	suiteStarted: function (result, suite) {
 		this.specNo_ = 0;
+		jasmine.getEnv().addMatchers(myMatchers);
 	},
 	suiteDone: function (result, suite) {
-		if (++this.suiteNo_ == 1 && this.skipSuite_)
+		if (++this.suiteNo_ == 1 && result.status != "finished")
 			jasmine.getEnv().pend();
 	},
 
@@ -322,4 +318,3 @@ var myReporter = {
 
 jasmine.getEnv().addReporter(myReporter);
 jasmine.getEnv().throwOnExpectationFailure(true);
-//jasmine.getEnv().addMatchers(myMatchers);

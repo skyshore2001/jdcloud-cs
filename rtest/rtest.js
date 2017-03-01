@@ -1,9 +1,6 @@
 // doc: https://jasmine.github.io/2.5/introduction
 
 describe("工具函数", function() {
-beforeEach(function() {
-	jasmine.addMatchers(myMatchers);
-});
 
 describe("param函数", function() {
 
@@ -197,9 +194,6 @@ describe("登录及权限", function() {
 })
 
 describe("对象型接口", function() {
-beforeEach(function() {
-	jasmine.addMatchers(myMatchers);
-});
 	var id_;
 	var postParam_; // {ac, addr}
 
