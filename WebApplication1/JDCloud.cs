@@ -55,6 +55,10 @@ namespace JDCloud
 			}
 		}
 
+		public bool isTestMode { get; protected set; }
+		public int debugLevel = 0;
+		public JsArray debugInfo = new JsArray();
+
 		//public static
 		public void dbconn()
 		{
@@ -80,6 +84,9 @@ namespace JDCloud
 			{
 				_REQUEST[k] = _GET[k];
 			}
+
+			this.isTestMode = true;
+			this.debugLevel = 9;
 		}
 
 		public void Close(bool ok)
@@ -312,6 +319,7 @@ namespace JDCloud
 		// 每一项是JsArray或JsObject(assoc=true)
 		public JsArray queryAll(string sql, bool assoc = false)
 		{
+			addLog(sql, 9);
 			DbDataReader rd = env.cnn.ExecQuery(sql);
 			var ret = new JsArray();
 			if (rd.HasRows)
@@ -325,9 +333,14 @@ namespace JDCloud
 			return ret;
 		}
 
+		/**
 		// can cast to JsObject or JsArray. 如果assoc=false且只有一列，直接返回数据。(相当于queryScalar)
+		var rv = queryOne("...");
+		if (rv.Equals(false)) { } // no data
+		*/
 		public object queryOne(string sql, bool assoc = false)
 		{
+			addLog(sql, 9);
 			DbDataReader rd = env.cnn.ExecQuery(sql);
 			object ret = null;
 			if (rd.HasRows)
@@ -345,11 +358,13 @@ namespace JDCloud
 		}
 		public object queryScalar(string sql)
 		{
+			addLog(sql, 9);
 			return env.cnn.ExecScalar(sql);
 		}
 
 		public int execOne(string sql, bool getNewId = false)
 		{
+			addLog(sql, 9);
 			int ret = env.cnn.ExecNonQuery(sql);
 			if (getNewId)
 			{
@@ -372,7 +387,10 @@ namespace JDCloud
 
 		public void addLog(string s, int level = 0)
 		{
-			//TODO
+			if (env.isTestMode && env.debugLevel >= level)
+			{
+				env.debugInfo.Add(s);
+			}
 		}
 		public void logit(string s, string which = "trace")
 		{
@@ -619,12 +637,12 @@ namespace JDCloud
 				this.onValidate();
 			}
 			else if (ac == "get" || ac == "query") {
-				string gres = param("gres") as string;
-				string res = param("res", 'a', this.defaultRes) as string;
+				string gres = param("gres", null, null, false) as string;
+				string res = param("res", null, this.defaultRes, false) as string;
 				sqlConf = new SqlConf() {
 					res = new List<string>{res},
 					gres = gres,
-					cond = new List<string>{param("cond") as string},
+					cond = new List<string>{param("cond", null, null, false) as string},
 					join = new List<string>(),
 					orderby = param("orderby") as string,
 					subobj = new Dictionary<string, SubobjDef>(),
@@ -707,7 +725,7 @@ namespace JDCloud
 		{
 			if (this.sqlConf.cond[0] != null) {
 				if (this.sqlConf.cond[0].IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
-					throw new MyException(E_SERVER, "forbidden SELECT in param cond");
+					throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 				}
 				// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
 				this.sqlConf.cond[0] = Regex.Replace(this.sqlConf.cond[0], @"/[\w|.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
@@ -992,7 +1010,7 @@ namespace JDCloud
 			this.addCond("t0.id=" + this.id, true);
 			StringBuilder sql = genQuerySql();
 			object ret = queryOne(sql.ToString(), true);
-			if (ret == null) 
+			if (ret.Equals(false))
 				throw new MyException(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
 			//TODO
 			//handleSubObj($sqlConf["subobj"], $id, $ret);
@@ -1213,12 +1231,12 @@ namespace JDCloud
 				colName = m.Groups[2].Value;
 				def = res;
 			}
-			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?(\w+)\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
+			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?""?(\w+)""?\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
 				colName = m.Groups[2].Value;
 				def = m.Groups[1].Value;
 			}
 			else
-				throw new MyException(E_SERVER, string.Format("bad res definition: `{0}`", res));
+				throw new MyException(E_PARAM, string.Format("bad res definition: `{0}`", res));
 
 			if (this.vcolMap.ContainsKey(colName)) {
 				if (added && this.vcolMap[colName].added)
@@ -1419,16 +1437,18 @@ namespace JDCloud
 				{
 					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
 					ret[1] = GetErrInfo((int)ret[0]);
-					// TODO: test mode
-					ret.Add(ex1.Message);
+					if (env.isTestMode)
+						ret.Add(ex1.Message);
 				}
 			}
 			env.Close(ok);
+			if (env.debugInfo.Count > 0)
+				ret.Add(env.debugInfo);
 
 			var ser = new JavaScriptSerializer();
-			//ser.Serialize(ser);
+			var retStr = ser.Serialize(ret);
 			context.Response.ContentType = "text/plain";
-			context.Response.Write(ser.Serialize(ret));
+			context.Response.Write(retStr);
 		}
 
 		public bool IsReusable
