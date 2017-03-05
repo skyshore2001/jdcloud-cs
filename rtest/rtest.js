@@ -98,7 +98,7 @@ describe("数据库函数", function() {
 
 		var tmstr = formatDate(tm_);
 		var ret = callSvrSync("fn", {f: "execOne", sql: "INSERT INTO ApiLog (tm, addr) VALUES ('" + tmstr + "', '" + addr_ + "')", getNewId: true});
-		expect(typeof(ret) == "number").toEqual(true);
+		expect(ret).toEqual(jasmine.any(Number));
 		id_ = ret;
 
 		want_ = {id: id_, tm: tm_, addr: addr_};
@@ -191,7 +191,7 @@ describe("登录及权限", function() {
 		var ret = callSvrSync("whoami");
 		expect(ret).toEqual({id: uid_});
 	});
-})
+});
 
 describe("对象型接口", function() {
 	var id_;
@@ -339,7 +339,7 @@ describe("对象型接口", function() {
 		var ret = callSvrSync("ApiLog.get", {id: id_});
 		expect(ret).toJDRet(E_PARAM);
 	});
-})
+});
 
 describe("对象型接口-异常", function() {
 	it("id不存在", function () {

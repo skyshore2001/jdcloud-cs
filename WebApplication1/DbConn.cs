@@ -67,6 +67,13 @@ namespace SSTk
             Open(type, dbname, "", "");
         }
 
+/**
+for type=ODBC: 
+
+- dbname="dsn=mydb"
+- dbname="filedsn=mydb.dsn"
+- dbname="driver=...; database=...; uid=...; pwd=..."
+*/
         public void Open(DbConnType type, string dbname, string dbuser, string dbpwd)
         {
             string cnnstr = dbname;
@@ -99,11 +106,8 @@ namespace SSTk
                 
                 case DbConnType.Odbc:
                     this.Provider = DbProviderFactories.GetFactory("System.Data.Odbc");
-                    if (dbname.EndsWith(".dsn", StringComparison.CurrentCultureIgnoreCase))
-                        cnnstr = "filedsn=" + dbname + authstr;
-                    else
-						cnnstr = "dsn=" + dbname + authstr;
-                    break;
+					cnnstr = dbname + authstr;
+					break;
 
                 default:
                     throw new Exception("Unsupported Dbtype");

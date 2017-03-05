@@ -10,6 +10,7 @@ using System.Data;
 using System.Collections.Specialized;
 using System.Text;
 using System.Web.SessionState;
+using System.Configuration;
 
 namespace JDCloud
 {
@@ -66,7 +67,10 @@ namespace JDCloud
 			if (cnn_ == null)
 			{
 				cnn_ = new SSTk.DbConn();
-				cnn_.Open(SSTk.DbConnType.Odbc, "mytest", "", "");
+
+				//string connStr = ConfigurationManager.AppSettings["dbConnectionString"];
+				string connStr = ConfigurationManager.ConnectionStrings["default"].ConnectionString;
+				cnn_.Open(SSTk.DbConnType.Odbc, connStr, "", "");
 				cnn_.BeginTransaction();
 			}
 		}
