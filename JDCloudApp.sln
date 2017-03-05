@@ -1,7 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApplication1", "WebApplication1\WebApplication1.csproj", "{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JDCloudDemo", "JDCloudDemo\JDCloudDemo.csproj", "{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JDCloud", "JDCloud\JDCloud.csproj", "{8358A3E2-70E8-4C84-868E-20F5427350BC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,6 +15,10 @@ Global
 		{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8358A3E2-70E8-4C84-868E-20F5427350BC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8358A3E2-70E8-4C84-868E-20F5427350BC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8358A3E2-70E8-4C84-868E-20F5427350BC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8358A3E2-70E8-4C84-868E-20F5427350BC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
