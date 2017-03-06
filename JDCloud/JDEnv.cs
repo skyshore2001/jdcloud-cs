@@ -38,7 +38,7 @@ namespace JDCloud
 
 	public abstract class JDEnv
 	{
-		public const string ImpClassName = "JDCloud.JDEnvImp";
+		public const string ImpClassName = "JDApi.JDEnvImp";
 
 		private static Assembly asm_;
 
@@ -125,9 +125,9 @@ namespace JDCloud
 			}
 		}
 
-		protected string onCreateAC(string table)
+		public  virtual string onCreateAC(string table)
 		{
-			return null;
+			return "AC_" + table;
 		}
 	}
 

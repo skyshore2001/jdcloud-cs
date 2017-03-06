@@ -52,7 +52,7 @@ namespace JDCloud
 				{
 					table = m.Groups[2].Value;
 					ac1 = m.Groups[3].Value;
-					clsName = AccessControl.create(table);
+					clsName = env.onCreateAC(table);
 					methodName = "api_" + ac1;
 				}
 				else

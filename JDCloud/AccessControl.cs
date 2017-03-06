@@ -412,12 +412,6 @@ namespace JDCloud
 			*/
 		}
 
-		public static string create(string table)
-		{
-			//TODO
-			return "AC_" + table;
-		}
-
 		public virtual object api_add()
 		{
 			var keys = new StringBuilder();

@@ -4,15 +4,18 @@ using System.Collections.Generic;
 using JDCloud;
 using System.Text.RegularExpressions;
 
-namespace JDCloud
+namespace JDApi
 {
 	public class JDEnvImp : JDEnv
 	{
+		/*
+		public override string onCreateAC(string table)
+		{
+			return "AC_" + table;
+		}
+		*/
 	}
-}
 
-namespace JDApi
-{
 	public class Global : JDApiBase
 	{
 		public object api_fn()
