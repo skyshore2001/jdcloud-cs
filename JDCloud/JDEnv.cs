@@ -58,6 +58,8 @@ namespace JDCloud
 		public HttpContext ctx;
 		public NameValueCollection _GET, _POST, _REQUEST;
 
+		public JDApiBase api;
+
 		public static JDEnvBase createInstance()
 		{
 			JDEnvBase env;
@@ -85,6 +87,9 @@ namespace JDCloud
 		public void init(HttpContext ctx)
 		{
 			this.ctx = ctx;
+			this.api = new JDApiBase();
+			this.api.env = this;
+
 			this._GET = new NameValueCollection(ctx.Request.QueryString);
 			this._POST = new NameValueCollection(ctx.Request.Form);
 			this._REQUEST = new NameValueCollection(_POST);

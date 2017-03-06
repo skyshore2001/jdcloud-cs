@@ -85,7 +85,6 @@ function callSvr(ac, param, fn, postParam, ajaxOpt)
 		type: postParam == null? "GET": "POST",
 		success: fn,
 		data: postParam,
-		async: false,
 
 		xhrFields: {
 			withCredentials: true

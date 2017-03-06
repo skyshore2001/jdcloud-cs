@@ -51,7 +51,7 @@
 
 数据表
 
-@ApiLog: id, ac, tm, addr, ua
+@ApiLog: id, ac, tm, addr, ua, userId
 
 ### 基本CRUD
 
@@ -92,3 +92,32 @@
 - 更新：tm, ac不可更新(readonly)。
 - 获取：不返回ua(hidden).
 
+### 权限限制, 虚拟字段与子表
+
+数据表：
+
+@User: id, name
+
+视图: @UserApiLog=ApiLog where userId IS NOT NULL
+
+接口
+
+	UserApiLog.add(ac, tm?, addr?) -> id
+	UserApiLog.query() -> tbl(id, ..., userName, %user?, last3LogAc?, @last3Log?)
+	UserApiLog.get() -> ...
+	UserApiLog.del()
+
+返回
+
+- userName: 关联User.name
+- %user={id, name}: user对象
+- last3LogAc: List(id, ac). 当前用户的最近3条日志, 按id倒排序。
+- @last3Log={id, ac}: 同上，返回子表。
+
+应用逻辑
+
+- 权限: AUTH_USER
+- add: 自动完成userId, tm字段
+- query/get/del时，只能操作当前用户自己的记录。
+- 不允许set操作
+- query结果默认按id倒排序.

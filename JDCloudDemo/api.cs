@@ -16,12 +16,13 @@ namespace JDApi
 
 			return perms;
 		}
-		/*
+
 		public override string onCreateAC(string table)
 		{
+			if (api.hasPerm(JDApiBase.AUTH_USER))
+				return "AC1_" + table;
 			return "AC_" + table;
 		}
-		*/
 	}
 
 	public class Global : JDApiBase
@@ -80,8 +81,12 @@ namespace JDApi
 		{
 			var uname = mparam("uname") as string;
 			var pwd = mparam("pwd") as string;
-			var id = 1001;
-			_SESSION["uid"] = 1001;
+
+			var sql = string.Format("SELECT id FROM User WHERE uname={0}", Q(uname));
+			var id = queryOne(sql);
+			if (id.Equals(false))
+				throw new MyException(E_AUTHFAIL, "bad uname or pwd");
+			_SESSION["uid"] = id;
 			return new JsObject() {
 				{"id", id}
 			};
@@ -121,19 +126,53 @@ namespace JDApi
 		}
 	}
 
-	public class AC_Ordr : AccessControl
+	public class AC1_UserApiLog : AC_ApiLog
 	{
-		public AC_Ordr()
+		private int uid;
+		public AC1_UserApiLog()
 		{
-			allowedAc = new List<string>() { "get", "query", "add", "set" };
+			this.allowedAc = new List<string>() { "get", "query", "add", "del" };
 		}
 
-		public object api_cancel()
+		// TODO: use constructor or onInit?
+		protected override void  onInit()
 		{
-			var ret = new Dictionary<string, object>();
-			ret["id"] = 100;
-			ret["name"] = "hello";
-			return ret;
+			this.table = "ApiLog";
+			this.uid = (int)_SESSION["uid"];
+		}
+
+		protected override void onValidate()
+		{
+			base.onValidate();
+			if (this.ac == "add")
+			{
+				_POST["userId"] = this.uid.ToString();
+			}
+		}
+
+		protected override void onValidateId()
+		{
+			if (this.ac == "del")
+			{
+				var id = mparam("id");
+				var rv = queryOne("SELECT id FROM ApiLog WHERE id=" + id + " AND userId=" + this.uid);
+				if (!rv.Equals(false))
+					throw new MyException(E_FORBIDDEN, "not your log");
+			}
+		}
+
+		protected override void onQuery()
+		{
+			base.onQuery();
+			this.addCond("userId=" + this.uid);
+		}
+
+		public object api_hello()
+		{
+			return new JsObject{
+				{"id", 100},
+				{"name", "hello"}
+			};
 		}
 	}
 }

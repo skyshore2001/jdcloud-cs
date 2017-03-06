@@ -1,5 +1,33 @@
 // doc: https://jasmine.github.io/2.5/introduction
 
+/**
+准备：
+
+User表中添加数据：
+uname="rtest", pwd="1234"
+ */
+// tools
+
+// ctx={uname, pwd, uid?}
+var loginCtx = {uname: "rtest", pwd: "1234"};
+
+function userLogin()
+{
+	var ctx = loginCtx;
+	if (ctx.uid != null)
+		return;
+	var ret = callSvrSync("login", {uname: ctx.uname, pwd: ctx.pwd});
+	expect(ret).toEqual({id: jasmine.any(Number)});
+	ctx.uid = ret.id;
+}
+
+function userLogout()
+{
+	var ret = callSvrSync("logout");
+	//expect(ret).toEqual("OK");
+	loginCtx.uid = null;
+}
+
 describe("工具函数", function() {
 
 describe("param函数", function() {
@@ -150,27 +178,10 @@ describe("数据库函数", function() {
 });
 
 describe("登录及权限", function() {
-	var uname_ = "jdcloud", pwd_ = "1234";
-	var uid_;
 
 	beforeAll(function() {
 		userLogout();
 	});
-
-	function userLogin()
-	{
-		if (uid_ != null)
-			return;
-		var ret = callSvrSync("login", {uname: uname_, pwd: pwd_});
-		expect(ret).toEqual({id: jasmine.any(Number)});
-		uid_ = ret.id;
-	}
-	function userLogout()
-	{
-		var ret = callSvrSync("logout");
-		//expect(ret).toEqual("OK");
-		uid_ = null;
-	}
 
 	it("不存在的接口", function () {
 		var ret = callSvrSync("xxx_no_method");
@@ -189,7 +200,7 @@ describe("登录及权限", function() {
 	it("whoami", function () {
 		userLogin();
 		var ret = callSvrSync("whoami");
-		expect(ret).toEqual({id: uid_});
+		expect(ret).toEqual({id: loginCtx.uid});
 	});
 });
 
@@ -377,5 +388,76 @@ describe("对象型接口-异常", function() {
 	it("限制res", function () {
 		var ret = callSvrSync("ApiLog.query", {res: "Max(id) maxId"});
 		expect(ret).toJDRet(E_FORBIDDEN);
+	});
+});
+
+describe("UserApiLog", function() {
+	var id_;
+	var postParam_; // {ac, addr}
+
+	beforeAll(function() {
+		userLogout();
+	});
+
+	function generalAdd()
+	{
+		if (id_ != null)
+			return;
+
+		var rd = Math.random();
+		postParam_ = {ac: "UserApiLog.add", addr: "test-addr" + rd};
+		var param = {};
+		var ret = callSvrSync("UserApiLog.add", param, $.noop, postParam_);
+
+		expect(ret).toEqual(jasmine.any(Number));
+		id_ = ret;
+	}
+
+	it("UserApiLog.query-noauth", function () {
+		var ret = callSvrSync("UserApiLog.query");
+		expect(ret).toJDRet(E_PARAM); // TODO E_FORBIDDEN?
+	});
+	it("UserApiLog.set-forbidden", function () {
+		userLogin();
+		var ret = callSvrSync("UserApiLog.set");
+		expect(ret).toJDRet(E_FORBIDDEN);
+	});
+
+	it("UserApiLog.add", function () {
+		userLogin();
+		generalAdd();
+	});
+	it("UserApiLog.query", function () {
+		userLogin();
+		var ret = callSvrSync("UserApiLog.query");
+		expect(ret).toJDTable(["id", "userName", "!last3LogAc", "!user", "!last3Log"]);
+		var arr = rs2Array(ret);
+		// 至少有一条
+		expect(arr.length).toBeGreaterThan(0);
+		expect(arr[0].id).toEqual(id_);
+		expect(arr[0].userName != null).toEqual(true);
+	});
+	it("UserApiLog.query-vcol", function () {
+		userLogin();
+		var ret = callSvrSync("UserApiLog.query", {res: "id, last3LogAc"});
+		expect(ret).toJDTable(["id", "!userName", "last3LogAc", "!user", "!last3Log"]);
+		var arr = rs2Array(ret);
+		// 至少有一条
+		expect(arr.length).toBeGreaterThan(0);
+		expect(arr[0].id).toEqual(id_);
+		expect(arr[0].last3LogAc != null).toEqual(true);
+	});
+	it("UserApiLog.query-subobj", function () {
+		userLogin();
+		var ret = callSvrSync("UserApiLog.query", {res: "id, user, last3Log"});
+		expect(ret).toJDTable(["id", "!userName", "!last3LogAc", "user", "last3Log"]);
+		var arr = rs2Array(ret);
+		// 至少有一条
+		expect(arr.length).toBeGreaterThan(0);
+		expect(arr[0].id).toEqual(id_);
+		expect(arr[0].user).toEqual({
+			id: loginCtx.uid, name: jasmine.any(String)
+		});
+		expect($.isArray(arr[0].last3Log) && arr[0].last3Log.length > 0).toEqual(true);
 	});
 });
