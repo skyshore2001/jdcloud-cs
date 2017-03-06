@@ -233,7 +233,8 @@ describe("对象型接口", function() {
 			expect(ret).toEqual(jasmine.objectContaining({
 				id: jasmine.any(Number),
 				addr: postParam_.addr,
-				tm: jasmine.any(Date)
+				tm: jasmine.any(String)
+				//tm: jasmine.any(Date)
 			}));
 			// ac未在res中指定，不应包含
 			expect(ret).not.toJDObj(["ac"]);
@@ -244,7 +245,7 @@ describe("对象型接口", function() {
 	it("add操作", function () {
 		generalAdd();
 	});
-	xit("add操作-res", function () {
+	it("add操作-res", function () {
 		generalAdd(true);
 	});
 	it("add操作-必填字段", function () {

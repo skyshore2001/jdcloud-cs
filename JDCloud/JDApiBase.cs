@@ -38,10 +38,6 @@ namespace JDCloud
 		{
 			get { return env._POST;}
 		}
-		public NameValueCollection _REQUEST
-		{
-			get { return env._REQUEST;}
-		}
 		public NameValueCollection _SERVER
 		{
 			get { return env.ctx.Request.ServerVariables;}

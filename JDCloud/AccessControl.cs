@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Collections.Specialized;
 
 namespace JDCloud
 {
@@ -288,11 +289,13 @@ namespace JDCloud
 		private void supportEasyuiSort()
 		{
 			// support easyui: sort/order
-			if (_REQUEST["sort"] != null)
+			string sort = param("sort") as string;
+			if (sort != null)
 			{
-				string orderby = _REQUEST["sort"];
-				if (_REQUEST["order"] != null)
-					orderby += " " + _REQUEST["order"];
+				string orderby = sort;
+				string order = param("order") as string;
+				if (order != null)
+					orderby += " " + order;
 				this.sqlConf.orderby = orderby;
 			}
 		}
@@ -460,7 +463,8 @@ namespace JDCloud
 			object ret = null;
 			if (res != null)
 			{
-				ret = api_get();
+				this._GET["id"] = this.id.ToString();
+				ret = env.callSvc(this.table + ".get");
 			}
 			else
 				ret = this.id;

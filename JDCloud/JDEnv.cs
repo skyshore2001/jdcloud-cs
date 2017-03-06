@@ -6,6 +6,7 @@ using System.Web;
 using System.Collections.Specialized;
 using System.Reflection;
 using System.Configuration;
+using System.Text.RegularExpressions;
 
 /*
 对外接口
@@ -56,7 +57,7 @@ namespace JDCloud
 		public JsArray debugInfo = new JsArray();
 
 		public HttpContext ctx;
-		public NameValueCollection _GET, _POST, _REQUEST;
+		public NameValueCollection _GET, _POST;
 
 		public JDApiBase api;
 
@@ -92,11 +93,6 @@ namespace JDCloud
 
 			this._GET = new NameValueCollection(ctx.Request.QueryString);
 			this._POST = new NameValueCollection(ctx.Request.Form);
-			this._REQUEST = new NameValueCollection(_POST);
-			foreach (string k in _GET)
-			{
-				_REQUEST[k] = _GET[k];
-			}
 
 			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"]) != 0;
 			this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"]);
@@ -125,6 +121,103 @@ namespace JDCloud
 					cnn_.Rollback();
 				cnn_.Dispose();
 			}
+		}
+
+		public class CallSvcOpt
+		{
+			public NameValueCollection _GET, _POST;
+			public bool isCleanCall = false;
+			public string ac;
+			public bool asAdmin = false;
+		}
+
+		// TODO: asAdmin
+		public object callSvc(string ac, CallSvcOpt opt = null)
+		{
+			Match m = Regex.Match(ac, @"(\w+)(?:\.(\w+))?$");
+			string ac1 = null;
+			string table = null;
+			string clsName = null;
+			string methodName = null;
+			if (m.Groups[2].Length > 0)
+			{
+				table = m.Groups[1].Value;
+				ac1 = m.Groups[2].Value;
+				clsName = onCreateAC(table);
+				methodName = "api_" + ac1;
+			}
+			else
+			{
+				clsName = "Global";
+				methodName = "api_" + m.Groups[2].Value;
+			}
+
+			JDApiBase obj = null;
+			Assembly asm = JDEnvBase.getAsmembly();
+			obj = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
+			if (obj == null)
+				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no class)");
+			Type t = obj.GetType();
+			MethodInfo mi = t.GetMethod(methodName);
+			if (mi == null)
+				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
+			obj.env = this;
+
+			NameValueCollection[] bak = null;
+			if (opt != null)
+			{
+				if (opt.isCleanCall || opt._GET != null|| opt._POST != null)
+				{
+					bak = new NameValueCollection[] { this._GET, this._POST };
+					if (opt.isCleanCall)
+					{
+						this._GET = new NameValueCollection();
+						this._POST = new NameValueCollection();
+					}
+					if (opt._GET != null)
+					{
+						foreach (string k in opt._GET)
+						{
+							this._GET[k] = opt._GET[k];
+						}
+					}
+					if (opt._POST != null)
+					{
+						foreach (string k in opt._POST)
+						{
+							this._POST[k] = opt._POST[k];
+						}
+					}
+				}
+			}
+
+			object ret = null;
+			if (clsName == "Global")
+			{
+				ret = mi.Invoke(obj, null);
+			}
+			else if (t.IsSubclassOf(typeof(AccessControl)))
+			{
+				AccessControl accessCtl = obj as AccessControl;
+				accessCtl.init(table, ac1);
+				accessCtl.before();
+				object rv = mi.Invoke(obj, null);
+				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, obj, null);
+				accessCtl.after(ref rv);
+				ret = rv;
+			}
+			else
+			{
+				throw new MyException(JDApiBase.E_SERVER, "misconfigured ac=`" + ac + "`");
+			}
+			if (ret == null)
+				ret = "OK";
+			if (bak != null)
+			{
+				this._GET = bak[0] as NameValueCollection;
+				this._POST = bak[1] as NameValueCollection;
+			}
+			return ret;
 		}
 
 		public  virtual string onCreateAC(string table)
