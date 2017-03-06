@@ -208,6 +208,10 @@ describe("对象型接口", function() {
 	var id_;
 	var postParam_; // {ac, addr}
 
+	beforeAll(function() {
+		userLogout();
+	});
+
 	function generalAdd(withRes)
 	{
 		if (id_ != null)
@@ -353,6 +357,10 @@ describe("对象型接口", function() {
 });
 
 describe("对象型接口-异常", function() {
+	beforeAll(function() {
+		userLogout();
+	});
+
 	it("id不存在", function () {
 		$.each(["get", "set", "del"], function () {
 			var ret = callSvrSync("ApiLog." + this);
@@ -429,7 +437,9 @@ describe("UserApiLog", function() {
 	});
 	it("UserApiLog.query", function () {
 		userLogin();
-		var ret = callSvrSync("UserApiLog.query");
+		generalAdd();
+
+		var ret = callSvrSync("UserApiLog.query", {_pagesz:5});
 		expect(ret).toJDTable(["id", "userName", "!last3LogAc", "!user", "!last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条
@@ -439,17 +449,24 @@ describe("UserApiLog", function() {
 	});
 	it("UserApiLog.query-vcol", function () {
 		userLogin();
-		var ret = callSvrSync("UserApiLog.query", {res: "id, last3LogAc"});
-		expect(ret).toJDTable(["id", "!userName", "last3LogAc", "!user", "!last3Log"]);
+		generalAdd();
+
+		var ret = callSvrSync("UserApiLog.query", {res: "id, last3LogAc", _pagesz:5});
+		expect(ret).toJDTable(["id", "!userName", "*last3LogAc", "!user", "!last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条
 		expect(arr.length).toBeGreaterThan(0);
 		expect(arr[0].id).toEqual(id_);
-		expect(arr[0].last3LogAc != null).toEqual(true);
+
+		// 子项1-3条之间
+		var n = arr[0].last3LogAc.split(',').length;
+		expect(n >= 0 && n <= 3).toEqual(true);
 	});
 	it("UserApiLog.query-subobj", function () {
 		userLogin();
-		var ret = callSvrSync("UserApiLog.query", {res: "id, user, last3Log"});
+		generalAdd();
+
+		var ret = callSvrSync("UserApiLog.query", {res: "id, user, last3Log", _pagesz:5});
 		expect(ret).toJDTable(["id", "!userName", "!last3LogAc", "user", "last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条

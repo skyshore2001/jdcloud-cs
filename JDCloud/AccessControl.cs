@@ -542,6 +542,33 @@ namespace JDCloud
 			return sql;
 		}
 
+		private void handleSubObj(int id, JsObject mainObj)
+		{
+			var subobj = this.sqlConf.subobj;
+			if (subobj != null) 
+			{
+				// opt: {sql, wantOne=false}
+				foreach (var kv in subobj) {
+					string k = kv.Key;
+					var opt = kv.Value;
+					if (opt.sql == null)
+						continue;
+					string sql1 = opt.sql.Replace("%d", id.ToString()); // e.g. "select * from OrderItem where orderId=%d"
+					var ret1 = queryAll(sql1, true);
+					if (opt.wantOne) 
+					{
+						if (ret1.Count > 0)
+							mainObj[k] = ret1[0];
+						else
+							mainObj[k] = null;
+					}
+					else {
+						mainObj[k] = ret1;
+					}
+				}
+			}
+		}
+
 		// return: JsObject
 		public virtual object api_get()
 		{
@@ -550,8 +577,8 @@ namespace JDCloud
 			object ret = queryOne(sql.ToString(), true);
 			if (ret.Equals(false))
 				throw new MyException(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
-			//TODO
-			//handleSubObj($sqlConf["subobj"], $id, $ret);
+			JsObject ret1 = ret as JsObject;
+			this.handleSubObj(this.id, ret1);
 
 			return ret;
 		}
@@ -667,15 +694,12 @@ namespace JDCloud
 					nextkey = pagekey + 1;
 				}
 			}
-			foreach (var mainObj in objArr) {
-				/* TODO
+			foreach (JsObject mainObj in objArr) {
 				object id1;
-				if ((mainObj as JsObject).TryGetValue("id", out id1))
+				if (mainObj.TryGetValue("id", out id1))
 				{
+					handleSubObj((int)id1, mainObj);
 				}
-				if (id1 != null)
-					handleSubObj(sqlConf.subobj, id1, mainObj);
-				*/
 			}
 			string fmt = param("_fmt") as string;
 			JsObject ret = null;
@@ -764,11 +788,11 @@ namespace JDCloud
 		{
 			Match m = null;
 			string colName, def;
-			if ( (m=Regex.Match(res, @"^(\w+)\.(\w+)")).Success) {
+			if ( (m=Regex.Match(res, @"^(\w+)\.(\w+)$")).Success) {
 				colName = m.Groups[2].Value;
 				def = res;
 			}
-			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?""?(\w+)""?\s*", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
+			else if ( (m = Regex.Match(res, @"^(.*?)\s+(?:as\s+)?""?(\w+)""?$", RegexOptions.IgnoreCase | RegexOptions.Singleline)).Success) {
 				colName = m.Groups[2].Value;
 				def = m.Groups[1].Value;
 			}

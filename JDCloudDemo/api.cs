@@ -137,8 +137,36 @@ namespace JDApi
 		// TODO: use constructor or onInit?
 		protected override void  onInit()
 		{
-			this.table = "ApiLog";
 			this.uid = (int)_SESSION["uid"];
+
+			this.table = "ApiLog";
+			this.defaultSort = "id DESC";
+
+			this.vcolDefs = new List<VcolDef>() 
+			{
+				new VcolDef() {
+					res = new List<string>() {"u.name userName"},
+					join = "INNER JOIN User u ON u.id=t0.userId",
+					isDefault = true
+				},
+				new VcolDef() {
+					res = new List<string>() { 
+						"(SELECT group_concat(concat(id, ':', ac)) FROM " +
+"(SELECT id, ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3) t) last3LogAc" 
+					}
+				}
+			};
+
+			this.subobj = new Dictionary<string, SubobjDef>()
+			{
+				{ "user", new SubobjDef() {
+					sql = "SELECT id,name FROM User u WHERE id=" + this.uid,
+					wantOne = true
+				}},
+				{ "last3Log", new SubobjDef() {
+					sql = "SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3",
+				}}
+			};
 		}
 
 		protected override void onValidate()

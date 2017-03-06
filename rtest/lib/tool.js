@@ -214,6 +214,27 @@ function assert(cond, errmsg)
 }
 
 var JDUtil = {
+	/*
+fields: 必须字段列表，如 ["id", "name"]；如果字段名以"!"开头，表示不可包含该字段，如 ["id", "!name"]
+parseFields(fields) -> [ {name, exists, notNull} ]
+	 */
+	parseFields: function (fields) {
+		var ret = [];
+		$.each(fields, function (i, e) {
+			var one = { name: e, exists: true, notNull: false };
+			if (e[0] == "!") {
+				one.name = e.substr(1);
+				one.exists = false;
+			}
+			else if (e[0] == "*") {
+				one.name = e.substr(1);
+				one.notNull = true;
+			}
+			ret.push(one);
+		});
+		return ret;
+	},
+
 	validateRet: function (ret, expectedCode) {
 		if (expectedCode == 0) {
 			assert(ret !== false, "Expected successful call");
@@ -223,30 +244,31 @@ var JDUtil = {
 			assert(g_data.lastError[0] == expectedCode, "Expected fail code to be " + getErrName(expectedCode) + ", actual " + getErrName(g_data.lastError[0]));
 		}
 	},
-	/*
-	// field中以"*"开头表示不可为null
-	// return : @fields={name, notNull}
-	parseFields: function (fields) {
-		$.map(fields, function () {
-			var notNull = e[0] == "*";
-			if (notNull) {
-			}
-		});
-	},
-	*/
 	validateTable: function (obj, fields) {
 		assert($.isPlainObject(obj) && $.isArray(obj.h) && $.isArray(obj.d), "Expected jdcloud table format `{h, d}`, actual " + JSON.stringify(obj));
 
+		var fieldSpec = this.parseFields(fields);
+		var notNullFieldIdxs = [];
 		if (obj.d.length > 0) {
-			$.each(fields, function (i, e) {
-				var idx = obj.h.indexOf(e);
-				assert(idx >=0, "Expected table field `" + e + "`");
+			$.each(fieldSpec, function (i, e) {
+				var idx = obj.h.indexOf(e.name);
+				if (e.exists) {
+					assert(idx >=0, "Expected table field `" + e.name + "`");
+				}
+				else {
+					assert(idx <0, "Expected NO table field `" + e.name + "`");
+				}
+				if (e.notNull)
+					notNullFieldIdxs.push(idx);
 			});
 		}
 		var cnt = obj.h.length;
 		$.each(obj.d, function (i, e) {
 			assert($.isArray(e), "Row " + i + " is NOT an array");
 			assert(e.length == cnt, "Expected column count=" + cnt + ", actual count=" + e.length + " (row " + i + ")");
+			$.each(notNullFieldIdxs, function (i1, e1) {
+				assert(e[e1], "Expect field " + obj.h[e1] + " NOT null (row " + i + ", col " + e1 + ")");
+			});
 		});
 	},
 	validateList: function (obj, fields) {
@@ -256,10 +278,14 @@ var JDUtil = {
 	validateObj: function (obj, fields, notNull) {
 		assert($.isPlainObject(obj), "Expected a plain object, actual " + JSON.stringify(obj));
 
-		$.each (fields, function (i, e) {
-			assert(obj.hasOwnProperty(e), "Expected object to have property: `" + e + "`");
-			if (notNull) {
-				assert(obj[e] != null, "Object property `" + e + "` is NOT null");
+		var fieldSpec = this.parseFields(fields);
+		$.each (fieldSpec, function (i, e) {
+			if (e.exists)
+				assert(obj.hasOwnProperty(e.name), "Expected object to have property: `" + e.name + "`");
+			else
+				assert(! obj.hasOwnProperty(e.name), "Expected object NOT to have property: `" + e.name + "`");
+			if (e.notNull) {
+				assert(obj[e.name] != null, "Object property `" + e.name + "` is expected NOT null");
 			}
 		});
 	},
@@ -269,6 +295,7 @@ var JDUtil = {
 			JDUtil.validateObj(e, fields);
 		});
 	}
+
 };
 
 function rs2Array(rs)
