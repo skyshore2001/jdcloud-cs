@@ -149,7 +149,7 @@ namespace JDCloud
 			else
 			{
 				clsName = "Global";
-				methodName = "api_" + m.Groups[2].Value;
+				methodName = "api_" + m.Groups[1].Value;
 			}
 
 			JDApiBase obj = null;
