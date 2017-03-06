@@ -87,7 +87,7 @@ namespace JDCloud
 			return type;
 		}
 
-		public bool TryParseBool(string s, out bool val)
+		public bool tryParseBool(string s, out bool val)
 		{
 			val = false;
 			if (s == null)
@@ -104,6 +104,99 @@ namespace JDCloud
 			return true;
 		}
 
+		class ElemType
+		{
+			public string type; // type
+			public bool optional;
+		}
+
+		public JsArray param_varr(string str, string type, string name)
+		{
+			JsArray ret = new JsArray();
+			var elemTypes = new List<ElemType>();
+			foreach (var t in type.Split(':'))
+			{
+				int tlen = t.Length;
+				if (tlen == 0)
+					throw new MyException(E_SERVER, string.Format("bad type spec: `{0}`", type));
+				bool optional = false;
+				string t1= t;
+				if (t[tlen-1] == '?')
+				{
+					t1 = t.Substring(0, tlen-1);
+					optional = true;
+				}
+				elemTypes.Add(new ElemType() {type=t1, optional=optional});
+			}
+			int colCnt = elemTypes.Count;
+
+			foreach (var row0 in str.Split(','))
+			{
+				var row = row0.Split(new char[] {':'}, colCnt);
+				Array.Resize(ref row, colCnt);
+				/*
+				while (row.Length < colCnt) {
+					row[] = null;
+				}
+				*/
+
+				var row1 = new JsArray();
+				for (int i=0; i<row.Length; ++i)
+				{
+					var e = row[i];
+					var t = elemTypes[i];
+					if (e == null || e.Length == 0)
+					{
+						if (t.optional)
+						{
+							row1.Add(null);
+							continue;
+						}
+						throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require col: `{2}`[{3}]", name, type, row0, i));
+					}
+					string v = htmlEscape(e);
+					if (t.type == "i") 
+					{
+						int ival;
+						if (! int.TryParse(v, out ival))
+							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require integer col: `{2}`[{3}]=`{4}`.", name, type, row0, ival, v));
+						row1.Add(ival);
+					}
+					else if (t.type == "n") 
+					{
+						decimal n;
+						if (! decimal.TryParse(v, out n))
+							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require numberic col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
+						row1.Add(n);
+					}
+					else if (t.type == "b")
+					{
+						bool b;
+						if (!tryParseBool(v, out b))
+							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require boolean col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
+						row1.Add(b);
+					}
+					else if (t.type == "s")
+					{
+						row1.Add(v);
+					}
+					else if (t.type == "dt" || t.type == "tm") {
+						DateTime dt;
+						if (! DateTime.TryParse(v, out dt))
+							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require datetime col: `{2}`[{3}]=`{4}`.", name, t.type, row0, i, v));
+						row1.Add(dt);
+					}
+					else {
+						throw new MyException(E_SERVER, string.Format("unknown elem type `{0}` for param `{1}`: list({2})", t.type, name, v));
+					}
+				}
+				ret.Add(row1);
+			}
+			if (ret.Count == 0)
+				throw new MyException(E_PARAM, "Bad Request - list param `{0}` is empty.", name);
+			return ret;
+		}
+
 		public object param(string name, object defVal = null, string coll = null, bool doHtmlEscape = true)
 		{
 			string type = parseType_(ref name);
@@ -116,7 +209,8 @@ namespace JDCloud
 			if (val == null && defVal != null)
 				return defVal;
 
-			if (val != null) {
+			if (val != null) 
+			{
 				if (type == "s")
 				{
 					// avoid XSS attack
@@ -142,7 +236,7 @@ namespace JDCloud
 				else if (type == "b")
 				{
 					bool b;
-					if (!TryParseBool(val, out b))
+					if (!tryParseBool(val, out b))
 						throw new MyException(E_PARAM, string.Format("Bad Request - bool param `{0}`=`{1}`.", name, val));
 					ret = b;
 				}
@@ -179,11 +273,15 @@ namespace JDCloud
 					}
 					ret = ret1;
 				}
-				else if (strpos(type, ":") >0)
-					ret = param_varr(ret, type, name);
 				*/
+				else if (type.Contains(':'))
+				{
+					ret = param_varr(val, type, name);
+				}
 				else
+				{
 					throw new MyException(E_SERVER, string.Format("unknown type `{0}` for param `{1}`", type, name));
+				}
 			}
 			return ret;
 		}

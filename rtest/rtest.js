@@ -88,9 +88,9 @@ describe("param函数", function() {
 		var ret = callSvrSync("fn", {f: "param", name: "idList/i+", idList: '3;4;5'});
 		expect(ret).toJDRet(E_PARAM);
 	});
-	xit("压缩表类型", function () {
-		var ret = callSvrSync("fn", {f: "param", name: "items/i:n:s", items: "100:1:洗车,101:1:打蜡"});
-		expect(ret).toEqual([ [100, 1.0, "洗车"], [101, 1, "打蜡"]]);
+	it("压缩表类型-varr", function () {
+		var ret = callSvrSync("fn", {f: "param", name: "items/i:n:s:b:dt", items: "100:1:洗车:1:2016-10-11,101:1:打蜡:0:2017-10-11"});
+		expect(ret).toEqual([ [100, 1.0, "洗车", true, jasmine.any(String)], [101, 1, "打蜡", false, jasmine.any(String)]]);
 
 		var ret = callSvrSync("fn", {f: "param", name: "items/i:n?:s?", items: "100:1,101::打蜡"});
 		expect(ret).toEqual([ [100, 1.0, null], [101, null, "打蜡"]]);
