@@ -23,6 +23,7 @@ namespace JDCloud
 		{
 			var ret = new List<object>() {0, null};
 			bool ok = false;
+			bool dret = false;
 			JDEnvBase env = null;
 			try
 			{
@@ -51,6 +52,7 @@ namespace JDCloud
 			catch (DirectReturn)
 			{
 				ok = true;
+				dret = true;
 			}
 			catch (MyException ex)
 			{
@@ -70,6 +72,11 @@ namespace JDCloud
 					ret[1] = ex2.Message;
 					ret.Add(ex2.DebugInfo);
 				}
+				else if (ex1 is DirectReturn)
+				{
+					ok = true;
+					dret = true;
+				}
 				else
 				{
 					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
@@ -84,6 +91,9 @@ namespace JDCloud
 				if (env.debugInfo.Count > 0)
 					ret.Add(env.debugInfo);
 			}
+
+			if (dret)
+				return;
 
 			var ser = new JavaScriptSerializer();
 			var retStr = ser.Serialize(ret);

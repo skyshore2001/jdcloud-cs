@@ -63,6 +63,21 @@ namespace JDCloud
 			return "未知错误";
 		}
 
+		public void header(string key, string value)
+		{
+			env.ctx.Response.AddHeader(key, value);
+		}
+		public void echo(params object[] objs)
+		{
+			foreach (var o in objs)
+			{
+				if (o is byte[])
+					env.ctx.Response.BinaryWrite(o as byte[]);
+				else
+					env.ctx.Response.Write(o);
+			}
+		}
+
 		private string parseType_(ref string name)
 		{
 			string type = null;

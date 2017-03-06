@@ -624,6 +624,75 @@ namespace JDCloud
 			return ret;
 		}
 
+		void outputCsvLine(JsArray row, string enc)
+		{
+			bool firstCol = true;
+			foreach (object e in row)
+			{
+				if (firstCol)
+					firstCol = false;
+				else
+					echo(',');
+				string s = e.ToString().Replace("\"", "\"\"");
+				if (enc != null)
+				{
+					byte[] bs = Encoding.GetEncoding(enc).GetBytes(s);
+					echo('"', bs, '"');
+				}
+				else
+				{
+					echo('"', s, '"');
+				}
+			}
+			echo("\n");
+		}
+
+		void table2csv(JsObject tbl, string enc = null)
+		{
+			outputCsvLine(tbl["h"] as JsArray, enc);
+			foreach (JsArray row in tbl["d"] as JsArray) 
+			{
+				outputCsvLine(row, enc);
+			}
+		}
+
+		void table2txt(JsObject tbl)
+		{
+			echo(string.Join("\t", (tbl["h"] as JsArray)), "\n");
+			foreach (JsArray row in (tbl["d"] as JsArray)) 
+			{
+				echo(string.Join("\t", row), "\n");
+			}
+		}
+
+		void handleExportFormat(string fmt, JsObject ret, string fname)
+		{
+			bool handled = false;
+			if (fmt == "csv") 
+			{
+				header("Content-Type", "application/csv; charset=UTF-8");
+				header("Content-Disposition", "attachment;filename=" + fname + ".csv");
+				table2csv(ret);
+				handled = true;
+			}
+			else if (fmt == "excel") 
+			{
+				header("Content-Type", "application/csv; charset=gb2312");
+				header("Content-Disposition", "attachment;filename=" + fname + ".csv");
+				table2csv(ret, "gb2312");
+				handled = true;
+			}
+			else if (fmt == "txt") 
+			{
+				header("Content-Type", "text/plain; charset=UTF-8");
+				header("Content-Disposition", "attachment;filename=" + fname + ".txt");
+				table2txt(ret);
+				handled = true;
+			}
+			if (handled)
+				throw new DirectReturn();
+		}
+
 		public object api_query()
 		{
 			object pagesz_o = param("_pagesz/i");
@@ -756,10 +825,8 @@ namespace JDCloud
 			if (totalCnt != null) {
 				ret["total"] = totalCnt;
 			}
-			/* TODO
-			if (fmt != null)
-				handleExportFormat($fmt, $ret, $tbl);
-			*/
+			if (fmt != null && fmt != "list")
+				handleExportFormat(fmt, ret, this.table);
 
 			return ret;
 		}

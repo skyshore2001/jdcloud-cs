@@ -214,7 +214,7 @@ describe("对象型接口", function() {
 
 	function generalAdd(withRes)
 	{
-		if (id_ != null)
+		if (id_ != null && !withRes)
 			return;
 
 		var rd = Math.random();
@@ -344,9 +344,29 @@ describe("对象型接口", function() {
 		// 不包含"ua"属性
 		expect(ret.list[0].hasOwnProperty("ua")).toBeFalsy();
 	});
-	xit("query操作-导出txt");
-	xit("query操作-导出csv");
-	xit("query操作-导出excel");
+
+	function testExport(fmt, sp)
+	{
+		var ret = callSvrSync("ApiLog.query", {_pagesz: 3, _fmt: fmt, res: "id,ac,addr,tm"}, $.noop, null, {nofilter:1});
+		var arr = ret.split("\n");
+		expect(arr.length >= 2).toEqual(true); // 至少2行，标题和首行
+
+		var cols = arr[0].split(sp);
+		expect(cols.length).toEqual(4); // 标题列
+
+		cols = arr[1].split(sp);
+		expect(cols.length).toEqual(4); // 数据列
+	}
+
+	it("query操作-导出txt", function () {
+		testExport("txt", "\t");
+	});
+	it("query操作-导出csv", function () {
+		testExport("csv", ",");
+	});
+	it("query操作-导出excel", function () {
+		testExport("excel", ",");
+	});
 
 	it("del操作", function () {
 		generalAdd();

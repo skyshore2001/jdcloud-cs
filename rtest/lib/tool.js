@@ -59,6 +59,7 @@ function defDataProc(rv)
 如果调用失败，错误写入 g_data.lastError.
 
 当ajaxOpt.noex=1时，不弹出错误框。
+当ajaxOpt.nofilter=1时，不做预处理，直接返回原始数据。
 */
 function callSvr(ac, param, fn, postParam, ajaxOpt)
 {
@@ -91,6 +92,10 @@ function callSvr(ac, param, fn, postParam, ajaxOpt)
 		},
 
 		dataFilter: function (data, type) {
+			if (this.nofilter) {
+				retData = data;
+				return data;
+			}
 			rv = defDataProc.call(this, data);
 			if (rv == null)
 			{
