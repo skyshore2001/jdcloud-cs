@@ -679,7 +679,6 @@ namespace JDCloud
 			}
 			string fmt = param("_fmt") as string;
 			JsObject ret = null;
-			// TODO: format
 			if (fmt == "list") {
 				ret = new JsObject() { { "list", objArr } };
 			}

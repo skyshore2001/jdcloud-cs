@@ -23,10 +23,10 @@ namespace JDCloud
 		{
 			var ret = new List<object>() {0, null};
 			bool ok = false;
-			JDEnv env = null;
+			JDEnvBase env = null;
 			try
 			{
-				env = JDEnv.createInstance();
+				env = JDEnvBase.createInstance();
 				env.init(context);
 				this.env = env;
 
@@ -35,9 +35,10 @@ namespace JDCloud
 				//Match m = Regex.Match(path, @"api/(\w+)");
 				if (!m.Success)
 					throw new MyException(E_PARAM, "bad ac");
-				// TODO: 测试模式允许跨域
+
+				// 测试模式允许跨域
 				string origin;
-				if ((origin = _SERVER["HTTP_ORIGIN"]) != null)
+				if (env.isTestMode && (origin = _SERVER["HTTP_ORIGIN"]) != null)
 				{
 					context.Response.AddHeader("Access-Control-Allow-Origin", origin);
 					context.Response.AddHeader("Access-Control-Allow-Credentials", "true");
@@ -62,7 +63,7 @@ namespace JDCloud
 				}
 
 				JDApiBase obj = null;
-				Assembly asm = JDEnv.getAsmembly();
+				Assembly asm = JDEnvBase.getAsmembly();
 				obj = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
 				if (obj == null)
 					throw new MyException(E_PARAM, "bad ac=`" + ac + "` (no class)");

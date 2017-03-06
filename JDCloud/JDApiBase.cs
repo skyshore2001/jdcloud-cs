@@ -29,7 +29,7 @@ namespace JDCloud
 		public const int AUTH_EMP = 0x2;
 		public const int AUTH_LOGIN = AUTH_USER | AUTH_EMP;
 
-		public JDEnv env;
+		public JDEnvBase env;
 		public NameValueCollection _GET 
 		{
 			get { return env._GET;}
@@ -307,16 +307,6 @@ namespace JDCloud
 			//TODO
 		}
 
-		// TODO: move to api.cs
-		protected int onGetPerms()
-		{
-			int perms = 0;
-			if (env.ctx.Session["uid"] != null)
-				perms |= AUTH_USER;
-
-			return perms;
-		}
-
 		public void checkAuth(int perms)
 		{
 			if (hasPerm(perms))
@@ -329,7 +319,7 @@ namespace JDCloud
 		int perms_;
 		public bool hasPerm(int perms)
 		{
-			perms_ = onGetPerms();
+			perms_ = env.onGetPerms();
 			if ((perms_ & perms) != 0)
 				return true;
 			return false;

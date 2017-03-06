@@ -36,9 +36,9 @@ namespace JDCloud
 		}
 	}
 
-	public abstract class JDEnv
+	public abstract class JDEnvBase
 	{
-		public const string ImpClassName = "JDApi.JDEnvImp";
+		public const string ImpClassName = "JDApi.JDEnv";
 
 		private static Assembly asm_;
 
@@ -58,14 +58,14 @@ namespace JDCloud
 		public HttpContext ctx;
 		public NameValueCollection _GET, _POST, _REQUEST;
 
-		public static JDEnv createInstance()
+		public static JDEnvBase createInstance()
 		{
-			JDEnv env;
+			JDEnvBase env;
 			if (asm_ == null)
 			{
 				foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
 				{
-					env = asm.CreateInstance(ImpClassName) as JDEnv;
+					env = asm.CreateInstance(ImpClassName) as JDEnvBase;
 					if (env != null)
 					{
 						asm_ = asm;
@@ -74,7 +74,7 @@ namespace JDCloud
 				}
 				throw new MyException(JDApiBase.E_SERVER, "No class " + ImpClassName);
 			}
-			return asm_.CreateInstance(ImpClassName) as JDEnv;
+			return asm_.CreateInstance(ImpClassName) as JDEnvBase;
 		}
 
 		public static Assembly getAsmembly()
@@ -93,19 +93,16 @@ namespace JDCloud
 				_REQUEST[k] = _GET[k];
 			}
 
-			this.isTestMode = true;
-			this.debugLevel = 9;
+			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"]) != 0;
+			this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"]);
 		}
 
-		//public static
 		public void dbconn()
 		{
-			// TODO: from conf.user.php
 			if (cnn_ == null)
 			{
 				cnn_ = new SSTk.DbConn();
 
-				//string connStr = ConfigurationManager.AppSettings["dbConnectionString"];
 				string connStr = ConfigurationManager.ConnectionStrings["default"].ConnectionString;
 				cnn_.Open(SSTk.DbConnType.Odbc, connStr, "", "");
 				cnn_.BeginTransaction();
@@ -128,6 +125,11 @@ namespace JDCloud
 		public  virtual string onCreateAC(string table)
 		{
 			return "AC_" + table;
+		}
+
+		public virtual int onGetPerms()
+		{
+			return 0;
 		}
 	}
 

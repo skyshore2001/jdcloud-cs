@@ -6,8 +6,16 @@ using System.Text.RegularExpressions;
 
 namespace JDApi
 {
-	public class JDEnvImp : JDEnv
+	public class JDEnv: JDEnvBase
 	{
+		public override int onGetPerms()
+		{
+			int perms = 0;
+			if (ctx.Session["uid"] != null)
+				perms |= JDApiBase.AUTH_USER;
+
+			return perms;
+		}
 		/*
 		public override string onCreateAC(string table)
 		{
