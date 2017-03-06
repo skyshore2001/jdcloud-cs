@@ -316,12 +316,14 @@ describe("对象型接口", function() {
 		var ret = callSvrSync("ApiLog.query", {gres:"ac", res:"count(*) cnt, sum(id) fakeSum", cond: "tm>='" + formatDate(dt) + "' and ac IS NOT NULL", orderby: "cnt desc", _pagesz: pagesz});
 		expect(ret).toJDTable(["ac", "cnt", "fakeSum"]);
 	});
-	xit("query操作-gres统计-中文", function () {
+	it("query操作-gres统计-中文", function () {
 		var pagesz = 3;
 		var dt = new Date();
 		dt.setTime(dt - T_DAY*7); // 7天内按ac分组统计
-		//var ret = callSvrSync("ApiLog.query", {gres:"ac \"动作\"", res:"count(*) \"总数\", sum(id) \"总和\"", cond: "tm>='" + formatDate(dt) + "'", orderby: "\"总数\" desc"});
 		var ret = callSvrSync("ApiLog.query", {gres:"ac 动作", res:"count(*) 总数, sum(id) 总和", cond: "tm>='" + formatDate(dt) + "'", orderby: "总数 desc", _pagesz: pagesz});
+		expect(ret).toJDTable(["动作", "总数", "总和"]);
+
+		var ret = callSvrSync("ApiLog.query", {gres:"ac \"动作\"", res:"count(*) \"总数\", sum(id) \"总和\"", cond: "tm>='" + formatDate(dt) + "'", orderby: "\"总数\" desc"});
 		expect(ret).toJDTable(["动作", "总数", "总和"]);
 	});
 	it("query操作-list", function () {

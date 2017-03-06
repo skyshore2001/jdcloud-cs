@@ -188,9 +188,9 @@ namespace JDCloud
 					gres = gres,
 					cond = new List<string>{param("cond", null, null, false) as string},
 					join = new List<string>(),
-					orderby = param("orderby") as string,
+					orderby = param("orderby", null, null, false) as string,
 					subobj = new Dictionary<string, SubobjDef>(),
-					union = param("union") as string,
+					union = param("union", null, null, false) as string,
 					distinct = (bool)param("distinct/b", false)
 				};
 
@@ -224,10 +224,10 @@ namespace JDCloud
 
 				// 确保res/gres参数符合安全限定
 				if (gres != null) {
-					this.filterRes(gres);
+					this.filterRes(gres, true);
 				}
 				if (res != null) {
-					this.filterRes(res, true);
+					this.filterRes(res);
 				}
 				else {
 					this.addDefaultVCols();
@@ -297,14 +297,17 @@ namespace JDCloud
 			}
 		}
 		// return: new field list
-		private void filterRes(string res, bool supportFn=false)
+		private void filterRes(string res, bool gres=false)
 		{
 			string firstCol = "";
-			foreach (var col0 in res.Split(',')) {
+			List<string> cols = new List<string>();
+			foreach (var col0 in res.Split(',')) 
+			{
 				string col = col0.Trim();
 				string alias = null;
 				string fn = null;
-				if (col == "*" || col == "t0.*") {
+				if (col == "*" || col == "t0.*") 
+				{
 					firstCol = "t0.*";
 					continue;
 				}
@@ -313,7 +316,8 @@ namespace JDCloud
 				if (! (m=Regex.Match(col, @"^(\w+)(?:\s+(?:AS\s+)?(\S+))?$", RegexOptions.IgnoreCase)).Success)
 				{
 					// 对于res, 还支持部分函数: "fn(col) as col1", 目前支持函数: count/sum
-					if (supportFn && (m=Regex.Match(col, @"^(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)$", RegexOptions.IgnoreCase)).Success) {
+					if (!gres && (m=Regex.Match(col, @"^(\w+)\([a-z0-9_.\'*]+\)\s+(?:AS\s+)?(\S+)$", RegexOptions.IgnoreCase)).Success)
+					{
 						fn = m.Groups[1].Value.ToUpper();
 						if (fn != "COUNT" && fn != "SUM")
 							throw new MyException(E_FORBIDDEN, string.Format("SQL function not allowed: `{0}`", fn));
@@ -321,28 +325,34 @@ namespace JDCloud
 					else 
 						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
 				}
-				else {
+				else
+				{
 					if (m.Groups[2].Length > 0) {
 						col = m.Groups[1].Value;
 						alias = m.Groups[2].Value;
 					}
 				}
 				// alias可以用引号，用于支持中文
-				if (alias != null && alias[0] != '"') {
+				if (alias != null && alias[0] != '"') 
+				{
 					alias = '"' + alias + '"';
 				}
-				if (fn != null) {
+				if (fn != null) 
+				{
 					this.addRes(col);
 					continue;
 				}
 
 	// 			if (! ctype_alnum(col))
 	// 				throw new MyException(E_PARAM, "bad property `col`");
-				if (this.addVCol(col, true, alias) == false) {
-					if (this.subobj != null && this.subobj.ContainsKey(col)) {
+				if (this.addVCol(col, true, alias) == false)
+				{
+					if (!gres && this.subobj != null && this.subobj.ContainsKey(col))
+					{
 						this.sqlConf.subobj[alias != null ? alias: col] = this.subobj[col];
 					}
-					else {
+					else 
+					{
 						col = "t0." + col;
 						if (alias != null) {
 							col += " AS " + alias;
@@ -350,8 +360,12 @@ namespace JDCloud
 						this.addRes(col, false);
 					}
 				}
+				cols.Add(alias != null ? alias : col);
 			}
-			this.sqlConf.res[0] = firstCol;
+			if (gres)
+				this.sqlConf.gres = string.Join(",", cols);
+			else
+				this.sqlConf.res[0] = firstCol;
 		}
 
 		private string filterOrderby(string orderby)
@@ -360,7 +374,7 @@ namespace JDCloud
 			foreach (var col0 in orderby.Split(',')) {
 				var col = col0.Trim();
 				Match m;
-				if (! (m=Regex.Match(col, @"^(\w+\.)?(\w+)(\s+(asc|desc))?$", RegexOptions.IgnoreCase)).Success)
+				if (! (m=Regex.Match(col, @"^(\w+\.)?(\S+)(\s+(asc|desc))?$", RegexOptions.IgnoreCase)).Success)
 					throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
 				if (m.Groups[1].Value.Length > 0) // e.g. "t0.id desc"
 				{
