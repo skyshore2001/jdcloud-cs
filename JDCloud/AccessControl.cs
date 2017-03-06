@@ -542,6 +542,28 @@ namespace JDCloud
 			return sql;
 		}
 
+		private JsObject queryAllCache = new JsObject();
+		protected JsArray queryAll(string sql, bool assoc, bool tryCache)
+		{
+			JsArray ret = null;
+			if (tryCache && queryAllCache != null)
+			{
+				object value;
+				queryAllCache.TryGetValue(sql, out value);
+				ret = value as JsArray;
+			}
+			if (ret == null)
+			{
+				ret = queryAll(sql, assoc);
+				if (tryCache)
+				{
+					if (queryAllCache == null)
+						queryAllCache = new JsObject();
+					queryAllCache[sql] = ret;
+				}
+			}
+			return ret;
+		}
 		private void handleSubObj(int id, JsObject mainObj)
 		{
 			var subobj = this.sqlConf.subobj;
@@ -554,7 +576,8 @@ namespace JDCloud
 					if (opt.sql == null)
 						continue;
 					string sql1 = opt.sql.Replace("%d", id.ToString()); // e.g. "select * from OrderItem where orderId=%d"
-					var ret1 = queryAll(sql1, true);
+					bool tryCache = sql1 == opt.sql;
+					JsArray ret1 = queryAll(sql1, true, true);
 					if (opt.wantOne) 
 					{
 						if (ret1.Count > 0)
