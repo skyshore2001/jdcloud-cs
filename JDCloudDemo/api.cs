@@ -4,6 +4,13 @@ using System.Collections.Generic;
 using JDCloud;
 using System.Text.RegularExpressions;
 
+namespace JDCloud
+{
+	public class JDEnvImp : JDEnv
+	{
+	}
+}
+
 namespace JDApi
 {
 	public class Global : JDApiBase

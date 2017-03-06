@@ -45,8 +45,12 @@ namespace JDCloud
 		}
 	}
 
-	public class JDEnv
+	public abstract class JDEnv
 	{
+		public const string ImpClassName = "JDCloud.JDEnvImp";
+
+		private static Assembly asm_;
+
 		private SSTk.DbConn cnn_;
 		public SSTk.DbConn cnn
 		{
@@ -59,6 +63,48 @@ namespace JDCloud
 		public bool isTestMode { get; protected set; }
 		public int debugLevel = 0;
 		public JsArray debugInfo = new JsArray();
+
+		public HttpContext ctx;
+		public NameValueCollection _GET, _POST, _REQUEST;
+
+		public static JDEnv createInstance()
+		{
+			JDEnv env;
+			if (asm_ == null)
+			{
+				foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+				{
+					env = asm.CreateInstance(ImpClassName) as JDEnv;
+					if (env != null)
+					{
+						asm_ = asm;
+						return env;
+					}
+				}
+				throw new MyException(JDApiBase.E_SERVER, "No class " + ImpClassName);
+			}
+			return asm_.CreateInstance(ImpClassName) as JDEnv;
+		}
+
+		public static Assembly getAsmembly()
+		{
+			return asm_;
+		}
+
+		public void init(HttpContext ctx)
+		{
+			this.ctx = ctx;
+			this._GET = new NameValueCollection(ctx.Request.QueryString);
+			this._POST = new NameValueCollection(ctx.Request.Form);
+			this._REQUEST = new NameValueCollection(_POST);
+			foreach (string k in _GET)
+			{
+				_REQUEST[k] = _GET[k];
+			}
+
+			this.isTestMode = true;
+			this.debugLevel = 9;
+		}
 
 		//public static
 		public void dbconn()
@@ -75,25 +121,8 @@ namespace JDCloud
 			}
 		}
 
-		public HttpContext ctx;
-		public NameValueCollection _GET, _POST, _REQUEST;
 
-		public JDEnv(HttpContext ctx)
-		{
-			this.ctx = ctx;
-			this._GET = new NameValueCollection(ctx.Request.QueryString);
-			this._POST = new NameValueCollection(ctx.Request.Form);
-			this._REQUEST = new NameValueCollection(_POST);
-			foreach (string k in _GET)
-			{
-				_REQUEST[k] = _GET[k];
-			}
-
-			this.isTestMode = true;
-			this.debugLevel = 9;
-		}
-
-		public void Close(bool ok)
+		public void close(bool ok)
 		{
 			if (cnn_ != null)
 			{
@@ -1348,10 +1377,13 @@ namespace JDCloud
 		{
 			var ret = new List<object>() {0, null};
 			bool ok = false;
-			JDEnv env = new JDEnv(context);
-			this.env = env;
+			JDEnv env = null;
 			try
 			{
+				env = JDEnv.createInstance();
+				env.init(context);
+				this.env = env;
+
 				string path = context.Request.Path;
 				Match m = Regex.Match(path, @"api/+((\w+)(?:\.(\w+))?)$");
 				//Match m = Regex.Match(path, @"api/(\w+)");
@@ -1384,7 +1416,7 @@ namespace JDCloud
 				}
 
 				JDApiBase obj = null;
-				Assembly asm = Assembly.GetExecutingAssembly();
+				Assembly asm = JDEnv.getAsmembly();
 				obj = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
 				if (obj == null)
 					throw new MyException(E_PARAM, "bad ac=`" + ac + "` (no class)");
@@ -1441,13 +1473,16 @@ namespace JDCloud
 				{
 					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
 					ret[1] = GetErrInfo((int)ret[0]);
-					if (env.isTestMode)
+					if (env != null && env.isTestMode)
 						ret.Add(ex1.Message);
 				}
 			}
-			env.Close(ok);
-			if (env.debugInfo.Count > 0)
-				ret.Add(env.debugInfo);
+			if (env != null)
+			{
+				env.close(ok);
+				if (env.debugInfo.Count > 0)
+					ret.Add(env.debugInfo);
+			}
 
 			var ser = new JavaScriptSerializer();
 			var retStr = ser.Serialize(ret);
