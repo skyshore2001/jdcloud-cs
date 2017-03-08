@@ -55,6 +55,7 @@ namespace JDCloud
 		public bool isTestMode { get; protected set; }
 		public int debugLevel = 0;
 		public JsArray debugInfo = new JsArray();
+		public string appName, appType;
 
 		public HttpContext ctx;
 		public NameValueCollection _GET, _POST;
@@ -96,6 +97,9 @@ namespace JDCloud
 
 			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"]) != 0;
 			this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"]);
+
+			this.appName = api.param("_app", "user", "G") as string;
+			this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
 		}
 
 		public void dbconn()
