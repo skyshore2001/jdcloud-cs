@@ -25,9 +25,11 @@ namespace JDCloud
 
 		public const int PAGE_SZ_LIMIT = 10000;
 
+		// 登录类型定义：
 		public const int AUTH_USER = 0x1;
 		public const int AUTH_EMP = 0x2;
-		public const int AUTH_LOGIN = AUTH_USER | AUTH_EMP;
+		// 支持8种登录类型 0x1-0x80; 其它权限应从0x100开始定义。
+		public const int AUTH_LOGIN = 0xff; 
 
 		public JDEnvBase env;
 		public NameValueCollection _GET 
