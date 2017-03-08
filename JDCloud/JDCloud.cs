@@ -25,6 +25,7 @@ namespace JDCloud
 			bool ok = false;
 			bool dret = false;
 			JDEnvBase env = null;
+			context.Response.ContentType = "text/plain";
 			try
 			{
 				env = JDEnvBase.createInstance();
@@ -97,7 +98,6 @@ namespace JDCloud
 
 			var ser = new JavaScriptSerializer();
 			var retStr = ser.Serialize(ret);
-			context.Response.ContentType = "text/plain";
 			context.Response.Write(retStr);
 		}
 
