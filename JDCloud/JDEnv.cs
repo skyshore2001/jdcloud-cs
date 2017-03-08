@@ -100,6 +100,12 @@ namespace JDCloud
 
 			this.appName = api.param("_app", "user", "G") as string;
 			this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
+
+			if (this.isTestMode)
+			{
+				api.header("X-Daca-Test-Mode", "1");
+			}
+			// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 		}
 
 		public void dbconn()
