@@ -6,6 +6,8 @@ using System.Collections.Specialized;
 using System.Web.SessionState;
 using System.Data.Common;
 using System.Web;
+using System.Web.Script.Serialization;
+using System.Text.RegularExpressions;
 
 /*
 在JDApiBase中实现工具函数。
@@ -471,6 +473,33 @@ namespace JDCloud
 			return ret;
 		}
 
+		public string jsonEncode(object o, bool doFormat = false)
+		{
+			var ser = new JavaScriptSerializer();
+			var retStr = ser.Serialize(o);
+			if (doFormat)
+				retStr = formatJson(retStr);
+			return retStr;
+		}
+
+		public string formatJson(string s)
+		{
+			int level = 0;
+			return Regex.Replace(s, @"(\{|\[)|(\}|\])|"".*?(?<!\\)""", m =>
+			{
+				if (m.Groups[1].Length > 0)
+				{
+					++level;
+					return m.Value + "\n" + new string(' ', level);
+				}
+				else if (m.Groups[2].Length > 0)
+				{
+					--level;
+					return "\n" + new string(' ', level) + m.Value;
+				}
+				return m.Value;
+			});
+		}
 	}
 
 }

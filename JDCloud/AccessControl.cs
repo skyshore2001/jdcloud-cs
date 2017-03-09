@@ -72,8 +72,9 @@ namespace JDCloud
 		protected List<VcolDef> vcolDefs; // elem: {res, join, default?=false}
 		protected Dictionary<string, SubobjDef> subobj; // elem: { name => {sql, wantOne, isDefault}}
 
-		// TODO: 回调函数集。在after中执行（在onAfter回调之后）。
-		// protected onAfterActions = [];
+		// 回调函数集。在after中执行（在onAfter回调之后）。
+		public delegate void OnAfterActions();
+		protected OnAfterActions onAfterActions;
 
 		// for get/query
 		// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
@@ -420,13 +421,8 @@ namespace JDCloud
 			*/
 			this.onAfter(ref ret);
 
-			/* TODO
-			foreach ($this.onAfterActions as $fn)
-			{
-				# NOTE: php does not allow call $this.onAfterActions();
-				$fn();
-			}
-			*/
+			if (this.onAfterActions != null)
+				this.onAfterActions();
 		}
 
 		public virtual object api_add()
