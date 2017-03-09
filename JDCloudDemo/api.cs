@@ -111,7 +111,7 @@ namespace JDApi
 
 	public class AC_ApiLog : AccessControl
 	{
-		public AC_ApiLog()
+		protected override void onInit()
 		{
 			this.requiredFields = new List<string>(){"ac"};
 			this.readonlyFields = new List<string>(){"ac", "tm"};
@@ -129,14 +129,9 @@ namespace JDApi
 	public class AC1_UserApiLog : AC_ApiLog
 	{
 		private int uid;
-		public AC1_UserApiLog()
-		{
-			this.allowedAc = new List<string>() { "get", "query", "add", "del" };
-		}
-
-		// TODO: use constructor or onInit?
 		protected override void  onInit()
 		{
+			this.allowedAc = new List<string>() { "get", "query", "add", "del" };
 			this.uid = (int)_SESSION["uid"];
 
 			this.table = "ApiLog";
