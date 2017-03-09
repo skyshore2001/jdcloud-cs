@@ -45,7 +45,7 @@ public class AC_ApiLog : AccessControl
 
 可见，用筋斗云后端框架开发对象操作接口，可以用非常简单的代码实现强大而灵活的功能。
 
-**[函数型接口]**
+**[函数型接口 - 简单直接]**
 
 除了对象型接口，还有一类叫函数型接口，比如要实现一个接口叫"getInfo"用于返回一些信息，开发起来也非常容易，只要在名为Global的类中定义一个函数：
 ```php
@@ -1437,28 +1437,30 @@ public class AC1_Ordr : AccessControl
 
 非标准对象接口与与函数型接口写法类似，返回object或void均可。
 
-### TODO: 接口返回前回调
+### 接口返回前回调
 
 示例：添加订单到Ordr表时，自动添加一条"创建订单"日志到OrderLog表，可以这样实现：
 ```php
-class AC1_Ordr extends AccessControl
+class AC1_Ordr : AccessControl
 {
-	protected function onValidate()
+	protected override void onValidate()
 	{
-		if ($this->ac == "add") {
+		if (this.ac == "add")
+		{
 			... 
 
-			$this->onAfterActions[] = function () {
-				$orderId = $this->id;
-				$sql = sprintf("INSERT INTO OrderLog (orderId, action, tm) VALUES ({$orderId},'CR','%s')", date('c'));
-				execOne($sql);
-			};
+			this.onAfterActions += new OnAfterActions(delegate()
+			{
+				var orderId = this.id;
+				string sql = string.Format("INSERT INTO OrderLog (orderId, action, tm) VALUES ({0},'CR','{1}')", orderId, DateTime.Now);
+				execOne(sql);
+			});
 		}
 	}
 }
 ```
-属性`$this->onAfterActions`是一个回调函数数组，在操作结束时被回调。
-属性`$this->id`可用于取add操作结束时的新对象id，或get/set/del操作的id参数。
+属性`onAfterActions`是一个delegate(回调函数组)，在操作结束时被回调。
+属性`id`可用于取add操作结束时的新对象id，或get/set/del操作的id参数。
 
 对象接口调用完后，还会回调onAfter函数，也可以在这个回调里面操作。
 此外，如要在get/query接口返回前修改返回数据，用onHandleRow回调函数更加方便。
@@ -1472,17 +1474,24 @@ class AC1_Ordr extends AccessControl
 	- statusStr: 状态名称，用中文表示，当有status返回时则同时返回该字段
 
 ```php
-class AC1_Ordr extends AccessControl
+class AC1_Ordr : AccessControl
 {
-	static $statusStr = ["CR" => "未付款", "PA" => "待服务"];
+	public static readonly Dictionary<string, string> statusStr = new Dictionary<string, string>() {
+		{"CR", "未付款"}, 
+		{"PA", "待服务"}
+	};
 	// get/query接口会回调
- 	protected function onHandleRow(&$rowData)
- 	{
-		if (isset($rowData["status"])) {
-			$st = $rowData["status"];
-			$rowData["statusStr"] = @self::$statusStr[$st] ?: $st;
+	protected override void onHandleRow(JsObject rowData)
+	{
+		if (rowData.ContainsKey("status"))
+		{
+			var st = rowData["status"].ToString();
+			string value;
+			if (!statusStr.TryGetValue(st, out value))
+				value = st;
+			rowData["statusStr"] = value;
 		}
- 	}
+	}
 }
 ```
 
