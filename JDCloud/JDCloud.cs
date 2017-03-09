@@ -98,6 +98,8 @@ namespace JDCloud
 
 			var ser = new JavaScriptSerializer();
 			var retStr = ser.Serialize(ret);
+			if (env.isTestMode)
+				retStr = formatJson(retStr);
 			context.Response.Write(retStr);
 		}
 
@@ -107,6 +109,25 @@ namespace JDCloud
 			{
 				return false;
 			}
+		}
+
+		public string formatJson(string s)
+		{
+			int level = 0;
+			return Regex.Replace(s, @"(\{|\[)|(\}|\])|"".*?(?<!\\)""", m =>
+			{
+				if (m.Groups[1].Length > 0)
+				{
+					++level;
+					return m.Value + "\n" + new string(' ', level);
+				}
+				else if (m.Groups[2].Length > 0)
+				{
+					--level;
+					return "\n" + new string(' ', level) + m.Value;
+				}
+				return m.Value;
+			});
 		}
 	}
 }
