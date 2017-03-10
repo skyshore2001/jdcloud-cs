@@ -4,7 +4,7 @@
 准备：
 
 User表中添加数据：
-uname="rtest", pwd="1234"
+uname="rtest", pwd="1234", name="jdcloud-test"
  */
 // tools
 
@@ -469,6 +469,16 @@ describe("UserApiLog", function() {
 		expect(arr.length).toBeGreaterThan(0);
 		expect(arr[0].id).toEqual(id_);
 		expect(arr[0].userName != null).toEqual(true);
+	});
+	it("query-在cond条件中使用虚拟字段", function () {
+		userLogin();
+		generalAdd();
+
+		var ret = callSvrSync("UserApiLog.query", {_pagesz:5, cond: "userId IS NOT NULL AND userId<>0 AND userName LIKE '%test%'"});
+		expect(ret).toJDTable(["id", "userName", "!last3LogAc", "!user", "!last3Log"]);
+		var arr = rs2Array(ret);
+		// 至少有一条
+		expect(arr.length).toBeGreaterThan(0);
 	});
 	it("UserApiLog.query-vcol", function () {
 		userLogin();

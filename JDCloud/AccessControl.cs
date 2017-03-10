@@ -274,7 +274,7 @@ namespace JDCloud
 					throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 				}
 				// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
-				this.sqlConf.cond[0] = Regex.Replace(this.sqlConf.cond[0], @"/[\w|.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
+				this.sqlConf.cond[0] = Regex.Replace(this.sqlConf.cond[0], @"[\w|.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
 					// 't0.0' for col, or 'voldef' for vcol
 					var col = m.Value;
 					if (col.Contains('.'))
