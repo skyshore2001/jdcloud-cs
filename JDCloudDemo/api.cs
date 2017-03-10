@@ -138,7 +138,7 @@ namespace JDApi
 			this.defaultSort = "id DESC";
 
 			VcolDef vcol = null;
-			if (env.cnn.DbType == "mysql")
+			if (env.cnn.DbType == "mssql")
 			{
 				vcol = new VcolDef() {
 					res = new List<string>() { 
@@ -149,7 +149,7 @@ WHERE userId=" + this.uid + @" ORDER BY id DESC FOR XML PATH('')
 					}
 				};
 			}
-			else if (env.cnn.DbType == "mssql")
+			else if (env.cnn.DbType == "mysql")
 			{
 				vcol = new VcolDef()
 				{
