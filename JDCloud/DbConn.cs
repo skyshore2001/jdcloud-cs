@@ -64,6 +64,12 @@ namespace JDCloud
 
 		// 处理LIMIT语句，转换成SQL服务器支持的语句
 		string fixPaging(string sql);
+
+		// 表名或字段名转义
+		string quoteName(string s);
+
+		// 在group-by, order-by中允许使用alias
+		bool acceptAliasInOrderBy();
 	}
 
 	public class DbConn: IDbConnection
@@ -102,6 +108,10 @@ namespace JDCloud
 		{
 			get;
 			protected set;
+		}
+		public IDbStrategy DbStragety
+		{
+			get { return m_dbStrategy; }
 		}
 
 		public DbConn() { }
@@ -278,11 +288,7 @@ namespace JDCloud
 		}
 		private string fixTableName(string sql)
 		{
-			string q = null;
-			if (DbType == "mysql")
-				q = "`$1`";
-			else
-				q = "\"$1\"";
+			string q = m_dbStrategy.quoteName("$1");
 			return Regex.Replace(sql, @"(?<= (?:UPDATE | FROM | JOIN | INTO) \s+ )([\w|.]+)", q, RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
 		}
 	}
@@ -302,9 +308,19 @@ namespace JDCloud
 			return Convert.ToInt32(ret);
 		}
 
+		public string quoteName(string s)
+		{
+			return "`" + s + "`";
+		}
+
 		public string fixPaging(string sql)
 		{
 			return sql;
+		}
+
+		public bool acceptAliasInOrderBy()
+		{
+			return true;
 		}
 	}
 
@@ -324,6 +340,11 @@ namespace JDCloud
 			return Convert.ToInt32(ret);
 		}
 
+		public string quoteName(string s)
+		{
+			return "[" + s + "]";
+		}
+
 		public string fixPaging(string sql)
 		{
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
@@ -341,6 +362,11 @@ namespace JDCloud
 					return string.Format("SELECT * FROM (SELECT ROW_NUMBER() OVER({0}) _row, {1}) t0 WHERE _row BETWEEN {2} AND {3}",
 						m.Groups[3].Value, m.Groups[1].Value, n1, n2);
 			}, RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.IgnorePatternWhitespace);
+		}
+
+		public bool acceptAliasInOrderBy()
+		{
+			return false;
 		}
 	}
 }

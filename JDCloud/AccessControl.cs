@@ -341,11 +341,6 @@ namespace JDCloud
 						alias = m.Groups[2].Value;
 					}
 				}
-				// alias可以用引号，用于支持中文
-				if (alias != null && alias[0] != '"') 
-				{
-					alias = '"' + alias + '"';
-				}
 				if (fn != null) 
 				{
 					this.addRes(col);
@@ -358,18 +353,24 @@ namespace JDCloud
 				{
 					if (!gres && this.subobj != null && this.subobj.ContainsKey(col))
 					{
-						this.sqlConf.subobj[alias != null ? alias: col] = this.subobj[col];
+						this.sqlConf.subobj[alias != null ? alias : col] = this.subobj[col];
 					}
-					else 
+					else
 					{
 						col = "t0." + col;
-						if (alias != null) {
-							col += " AS " + alias;
+						var col1 = col;
+						if (alias != null)
+						{
+							col1 += " AS " + alias;
 						}
-						this.addRes(col, false);
+						this.addRes(col0, false);
 					}
 				}
-				cols.Add(alias != null ? alias : col);
+				// mysql可在group-by中直接用alias, 而mssql要用原始定义
+				if (env.cnn.DbStragety.acceptAliasInOrderBy())
+					cols.Add(alias != null ? alias : col);
+				else
+					cols.Add(col);
 			}
 			if (gres)
 				this.sqlConf.gres = string.Join(",", cols);
@@ -377,6 +378,8 @@ namespace JDCloud
 				this.sqlConf.res[0] = firstCol;
 		}
 
+		// 注意：mysql中order by/group by可以使用alias, 但mssql中不可以，需要换成alias的原始定义
+		// 而在where条件中，alias都需要换成原始定义，见 fixUserQuery
 		private string filterOrderby(string orderby)
 		{
 			var colArr = new List<string>();
@@ -390,12 +393,22 @@ namespace JDCloud
 					colArr.Add(col);
 					continue;
 				}
-				col = Regex.Replace(col, @"^(\w+)", m1 => {
-					string col1 = m1.Groups[1].Value;
-					if (this.addVCol(col1, true, "-") != false)
-						return col1;
-					return "t0." + col1;
-				});
+				if (col.IndexOf(".") < 0)
+				{
+					col = Regex.Replace(col, @"^(\S+)", m1 =>
+					{
+						string col1 = m1.Groups[1].Value;
+						col1 = col1.Replace("\"", "");
+						if (this.addVCol(col1, true, "-") != false)
+						{
+							// mysql可在order-by中直接用alias, 而mssql要用原始定义
+							if (! env.cnn.DbStragety.acceptAliasInOrderBy())
+								return this.vcolMap[col1].def;
+							return col1;
+						}
+						return "t0." + col1;
+					});
+				}
 				colArr.Add(col);
 			}
 			return string.Join(",", colArr);
