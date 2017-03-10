@@ -13,7 +13,9 @@ namespace JDCloud
 		public string join;
 		public string cond;
 		public bool isDefault;
+		// 依赖另一列
 		public string require;
+		// 已应用到最终查询中
 		public bool added;
 	}
 	public class SubobjDef
@@ -36,8 +38,11 @@ namespace JDCloud
 	}
 	class Vcol
 	{
+		// def0包含alias, def不包含alias
 		public string def, def0;
+		// 指向vcolDef中的index
 		public int vcolDefIdx = -1;
+		// 已应用到最终查询中
 		public bool added;
 	}
 
@@ -935,6 +940,9 @@ namespace JDCloud
 	/**
 	@fn AccessControl::addVCol(col, ignoreError=false, alias=null)
 
+	根据列名找到vcolMap中的一项，添加到最终查询语句中.
+	vcolMap是分析vcolDef后的结果，每一列都对应一项；而在一项vcolDef中可以包含多列。
+
 	@param col 必须是一个英文词, 不允许"col as col1"形式; 该列必须在 vcolDefs 中已定义.
 	@param alias 列的别名。可以中文. 特殊字符"-"表示不加到最终res中(只添加join/cond等定义), 由addVColDef内部调用时使用.
 	@return Boolean T/F
@@ -952,7 +960,7 @@ namespace JDCloud
 			}
 			if (this.vcolMap[col].added)
 				return true;
-			this.addVColDef(this.vcolMap[col].vcolDefIdx, true);
+			this.addVColDef(this.vcolMap[col].vcolDefIdx);
 			if (alias != null) {
 				if (alias != "-")
 					this.addRes(this.vcolMap[col].def + " AS " + alias, false);
@@ -971,23 +979,24 @@ namespace JDCloud
 			foreach (var vcolDef in this.vcolDefs) {
 				if (vcolDef.isDefault) {
 					this.addVColDef(idx);
+					foreach (var e in vcolDef.res) {
+						this.addRes(e);
+					}
 				}
 				++ idx;
 			}
 		}
 
-		private void addVColDef(int idx, bool dontAddRes = false)
+		/*
+		根据index找到vcolDef中的一项，添加join/cond到最终查询语句(但不包含res)。
+		 */
+		private void addVColDef(int idx)
 		{
 			if (idx < 0 || this.vcolDefs[idx].added)
 				return;
 
 			var vcolDef = this.vcolDefs[idx];
 			vcolDef.added = true;
-			if (! dontAddRes) {
-				foreach (var e in vcolDef.res) {
-					this.addRes(e);
-				}
-			}
 			if (vcolDef.require != null)
 			{
 				var requireCol = vcolDef.require;
