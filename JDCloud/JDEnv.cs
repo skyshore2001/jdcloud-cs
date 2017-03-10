@@ -113,9 +113,13 @@ namespace JDCloud
 			if (cnn_ == null)
 			{
 				cnn_ = new SSTk.DbConn();
+				cnn_.onExecSql += new SSTk.DbConn.OnExecSql(delegate(string sql)
+				{
+					api.addLog(sql, 9);
+				});
 
-				string connStr = ConfigurationManager.ConnectionStrings["default"].ConnectionString;
-				cnn_.Open(SSTk.DbConnType.Odbc, connStr, "", "");
+				var connSetting = ConfigurationManager.ConnectionStrings["default"];
+				cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName);
 				cnn_.BeginTransaction();
 			}
 		}

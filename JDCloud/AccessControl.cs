@@ -783,7 +783,8 @@ namespace JDCloud
 				}
 			}
 
-			var objArr = queryAll(sql.ToString(), true);
+			string sql1 = env.cnn.fixPaging(sql.ToString());
+			var objArr = queryAll(sql1, true);
 
 			// Note: colCnt may be changed in after().
 			int fixedColCnt = objArr.Count()==0? 0: (objArr[0] as JsObject).Count();

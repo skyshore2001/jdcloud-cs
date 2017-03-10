@@ -342,7 +342,6 @@ namespace JDCloud
 		// 每一项是JsArray或JsObject(assoc=true)
 		public JsArray queryAll(string sql, bool assoc = false)
 		{
-			addLog(sql, 9);
 			DbDataReader rd = env.cnn.ExecQuery(sql);
 			var ret = new JsArray();
 			if (rd.HasRows)
@@ -363,11 +362,11 @@ namespace JDCloud
 		*/
 		public object queryOne(string sql, bool assoc = false)
 		{
-			addLog(sql, 9);
 			DbDataReader rd = env.cnn.ExecQuery(sql);
 			object ret = null;
 			if (rd.HasRows)
 			{
+				rd.Read();
 				ret = readerToCol(rd, assoc);
 				if (!assoc && (ret as JsArray).Count == 1)
 					ret = (ret as JsArray)[0];
@@ -381,26 +380,17 @@ namespace JDCloud
 		}
 		public object queryScalar(string sql)
 		{
-			addLog(sql, 9);
 			return env.cnn.ExecScalar(sql);
 		}
 
 		public int execOne(string sql, bool getNewId = false)
 		{
-			addLog(sql, 9);
 			int ret = env.cnn.ExecNonQuery(sql);
 			if (getNewId)
 			{
-				ret = getLastInsertId();
+				ret = env.cnn.getLastInsertId();
 			}
 			return ret;
-		}
-
-		// TODO: now just mysql; mssql uses "SELECT SCOPE_IDENTITY()" or "SELECT @@IDENTITY"
-		public int getLastInsertId()
-		{
-			object ret = env.cnn.ExecScalar("SELECT LAST_INSERT_ID()");
-			return Convert.ToInt32(ret);
 		}
 
 		public string htmlEscape(string s)
