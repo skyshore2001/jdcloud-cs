@@ -43,8 +43,8 @@ namespace JDCloud
 
 		private static Assembly asm_;
 
-		private SSTk.DbConn cnn_;
-		public SSTk.DbConn cnn
+		private DbConn cnn_;
+		public DbConn cnn
 		{
 			get {
 				dbconn();
@@ -112,14 +112,17 @@ namespace JDCloud
 		{
 			if (cnn_ == null)
 			{
-				cnn_ = new SSTk.DbConn();
-				cnn_.onExecSql += new SSTk.DbConn.OnExecSql(delegate(string sql)
+				var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
+				var connSetting = ConfigurationManager.ConnectionStrings["default"];
+				if (connSetting == null)
+					throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
+
+				cnn_ = new DbConn();
+				cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
 				{
 					api.addLog(sql, 9);
 				});
-
-				var connSetting = ConfigurationManager.ConnectionStrings["default"];
-				cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName);
+				cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
 				cnn_.BeginTransaction();
 			}
 		}

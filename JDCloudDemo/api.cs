@@ -137,6 +137,32 @@ namespace JDApi
 			this.table = "ApiLog";
 			this.defaultSort = "id DESC";
 
+			VcolDef vcol = null;
+			if (env.cnn.DbType == "mysql")
+			{
+				vcol = new VcolDef() {
+					res = new List<string>() { 
+@"(SELECT TOP 3 cast(id as varchar) + ':' + ac + ','
+FROM ApiLog log 
+WHERE userId=" + this.uid + @" ORDER BY id DESC FOR XML PATH('')
+) last3LogAc"
+					}
+				};
+			}
+			else if (env.cnn.DbType == "mssql")
+			{
+				vcol = new VcolDef()
+				{
+					res = new List<string>() {
+@"(SELECT group_concat(concat(id, ':', ac))
+FROM (
+SELECT id, ac
+FROM ApiLog 
+WHERE userId=" + this.uid + @" ORDER BY id DESC LIMIT 3) t
+) last3LogAc"
+					}
+				};
+			}
 			this.vcolDefs = new List<VcolDef>() 
 			{
 				new VcolDef() {
@@ -144,12 +170,7 @@ namespace JDApi
 					join = "INNER JOIN User u ON u.id=t0.userId",
 					isDefault = true
 				},
-				new VcolDef() {
-					res = new List<string>() { 
-						"(SELECT group_concat(concat(id, ':', ac)) FROM " +
-"(SELECT id, ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3) t) last3LogAc" 
-					}
-				}
+				vcol
 			};
 
 			this.subobj = new Dictionary<string, SubobjDef>()
@@ -159,7 +180,7 @@ namespace JDApi
 					wantOne = true
 				}},
 				{ "last3Log", new SubobjDef() {
-					sql = "SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3",
+					sql = env.cnn.fixPaging("SELECT id,ac FROM ApiLog log WHERE userId=" + this.uid + " ORDER BY id DESC LIMIT 3"),
 				}}
 			};
 		}

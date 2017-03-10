@@ -482,8 +482,11 @@ describe("UserApiLog", function() {
 		expect(arr[0].id).toEqual(id_);
 
 		// 子项1-3条之间
-		var n = arr[0].last3LogAc.split(',').length;
+		var list = list2varr(arr[0].last3LogAc);
+		var n = list.length;
 		expect(n >= 0 && n <= 3).toEqual(true);
+		// 每条有两列:id,ac
+		expect(list[0].length == 2).toEqual(true);
 	});
 	it("UserApiLog.query-subobj", function () {
 		userLogin();

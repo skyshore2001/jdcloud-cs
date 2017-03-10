@@ -7,8 +7,6 @@
 
 筋斗云原本使用php语言开发，本项目为筋斗云的C#实现版本，支持在.NET平台进行函数型、对象型接口开发。
 
-TODO：当前版本支持以ODBC方式连接MySQL数据库，其它数据库或连接方式未做测试。
-
 **[对象型接口 - 数据模型即接口]**
 
 假设数据库中已经建好一张记录操作日志的表叫"ApiLog"，包含字段id（主键，整数类型）, tm（日期时间类型）, addr（客户端地址，字符串类型）。
@@ -142,25 +140,30 @@ public class AC2_ApiLog : AccessControl
 
 以示例工程JDCloudDemo为例，我们先看如何配置数据库连接等信息。打开Web.config文件:
 
-数据库以连接字符串方式定义如下：
+数据库目前支持MySQL和MSSQL，以连接字符串方式定义如下：
 
 	<connectionStrings>
-		<add name="default" connectionString="filedsn=d:/db/jdcloud.dsn" />
-		<!--add name="default" connectionString="DRIVER=MySQL ODBC 5.3 Unicode Driver; PORT=3306; DATABASE=<mydb>; SERVER=<myserver>; UID=<uid>; PWD=<pwd>; CHARSET=UTF8;" /-->
+		<add name="default" connectionString="DRIVER=MySQL ODBC 5.3 Unicode Driver; PORT=3306; DATABASE=<mydb>; SERVER=<myserver>; UID=<uid>; PWD=<pwd>; CHARSET=UTF8;" />
 	</connectionStrings>
 
-可以直接写清楚连接字符串（包含UID和PWD），也可以用系统自带的odbcad32应用程序创建一个文件数据源（即dsn文件），并在这里引用。
+默认是以ODBC方式连接MySQL数据库。如果要连接SQL Server，可以设置为：
+
+	<add name="default" connectionString="DATABASE=<mydb>; SERVER=<myserver>; Trusted_Connection=<Yes/No>; UID=<uid>; PWD=<pwd>;" providerName="System.Data.SqlClient" />
 
 其它参数配置一般在appSettings节中，如：
 
 	<appSettings>
 		<add key="P_TESTMODE" value="1" />
 		<add key="P_DEBUG" value="9" />
+		<add key="P_DBTYPE" value="mssql" />
 	</appSettings>
 
 一般在开发时，会激活测试模式(P_TESTMODE=1)，可返回更多调试信息; 
 可用P_DEBUG设置调试信息输出等级，当值为9（最高）时，可以查看SQL调用日志，这在调试SQL语句时很有用。
-此外，测试模式还会开放某些内部接口，以及缺省允许跨域访问，便于通过web页面测试接口。注意线上生产环境绝不可设置为测试模式。
+此外，测试模式还会开放某些内部接口，以及缺省允许跨域访问，便于通过web页面测试接口。
+**注意线上生产环境绝不可设置为测试模式。**
+
+参数P_DBTYPE用于提示数据库类型，值为"mssql"或"mysql"，如果不指定，筋斗云将自动判断。
 
 为了访问 `api/{调用名}` 这样的API，我们直接设置：
 
@@ -170,6 +173,14 @@ public class AC2_ApiLog : AccessControl
 			<add path="api/*" type="JDCloud.JDHandler" verb="*" />
 		</httpHandlers>
 	</system.web>
+
+上面是使用IIS经典模式部署，如果以IIS集成模式部署，则应设置为：
+
+	<system.webServer>
+		<handlers>
+			<add name="JDCloud.JDHandler" path="api/*" verb="*" type="JDCloud.JDHandler" />
+		</handlers>
+	</system.webServer>
 
 为了学习接口编程，我们将JDCloudDemo演示工程中的api.cs文件清空，从头开始来写，以暴露ApiLog对象为例，在api.cs中添加代码：
 ```php
@@ -1258,7 +1269,7 @@ public class AC1_Ordr : AccessControl
 	{
 		this.vcolDefs = new List<VcolDef>() {
 			new VcolDef() {
-				res = new List<string>() { "(SELECT SUM(qty*ifnull(price2,0)) FROM OrderItem WHERE orderId=t0.id) AS amount2" };
+				res = new List<string>() { "(SELECT SUM(qty*isnull(price2,0)) FROM OrderItem WHERE orderId=t0.id) AS amount2" };
 			}
 		}
 	}
@@ -1289,10 +1300,26 @@ public class AC1_Ordr : AccessControl
 	返回
 	- itemsInfo: List(name, price, qty). 格式例如"洗车:25:1,换轮胎:380:2", 表示两行记录，每行3个字段。注意字段内容中不可出现":", ","这些分隔符。
 
+要将字段拼合成这种格式，在MySQL中一般用group_concat：
+
+	SELECT group_concat(concat(oi.name, ':', oi.price, ':', oi.qty))
+	FROM OrderItem oi
+	WHERE ...
+
+在MSSQL中，可以用"SELECT...FOR XML"方式来拼合, 生成的串最后会多带一个逗号，如"洗车:25:1,换轮胎:380:2,"
+
+	SELECT oi.name + ':' + cast(oi.price as varchar) + ':' + cast(oi.qty as varchar) + ','
+	FROM OrderItem oi
+	WHERE ...
+	FOR XML PATH('')
+
 子表字段也是一种计算字段，可实现如下：
 
 	res = new List<string>() {
-	"(SELECT group_concat(concat(oi.name, ':', oi.price, ':', oi.qty)) FROM OrderItem oi WHERE oi.orderId=t0.id) itemsInfo"
+	"(SELECT oi.name + ':' + cast(oi.price as varchar) + ':' + cast(oi.qty as varchar) + ','
+	FROM OrderItem oi
+	WHERE oi.orderId=t0.id
+	FOR XML PATH('') ) itemsInfo"
 	};
 
 ### 子表对象
@@ -1500,28 +1527,16 @@ class AC1_Ordr : AccessControl
 ### TODO: 会话管理
 
 筋斗云使用cookie机制来维持与客户端的会话。
-它默认使用的cookie名称是"userid"，但可以由客户端请求中URL参数`_app`来修改，比如`_app=emp`，则使用cookie名称为"empid"。
-在筋斗云中，`_app`参数称为前端应用名，因而不同的应用即使同时在浏览器中打开也不会发生会话错乱和冲突。
+按DACA规范，默认使用的cookie名称是"userid"，但可以由客户端请求中URL参数`_app`来修改，比如`_app=emp`，则使用cookie名称为"empid"。
 
-示例请求：
+在ASP.NET中，可在web.config中设置会话使用的cookie名称，比如：
 
-	GET /mysvc/api?_app=emp
+	<sessionState mode="InProc" cookieName="userid" timeout="20" />
 
-如果请求中没有带cookie，则调用将返回HTTP头：
+受限于.NET机制，cookie名称无法动态设置。这将导致如果在同一浏览器中打开多个不同应用，比如同时打开用户端和员工端，可能会有会话冲突。
+例如用户端退出(logout)导致员工端也被退出，如果在实现时不同应用使用了同名的session，也会出现不可预料的问题。
 
-	SetCookie: empid=xxxxxx; path=/mysvc; HttpOnly
-
-浏览器根据这个指令来保存cookie。注意cookie的有效路径"/mysvc"是在文件conf.user中配置的，有一项P_URL_PATH变量设置：
-
-	putenv("P_URL_PATH", "/mysvc");
-
-这个URL路径要与实际访问服务器上的一致。如果服务放在根目录下，就要改设置为`putenv("P_URL_PATH", "/")`。
-一旦这里设置出错，可能出现登录后仍报未登录错误的现象，因为cookie不可用，无法维持会话。
-
-在代码中，可以用 getBaseUrl() 函数来获取基准URL。比如要返回一个URL路径，就可以用
-
-	$url = getBaseUrl() . "notify_url";
-	// $url = "http://myserver/mysvc/notify_url"
+在开发时，应确保不同使用不要使用同名的session项。手工测试时，应避免在同一浏览器中打开多个应用。
 
 ### 其它未实现功能
 
@@ -1555,8 +1570,4 @@ DACA协议定义了批量请求，即在一次请求中，包含多条接口调�
 - 模拟模式与第三方扩展接口
 
 - 筋斗云插件
-
-其它TODO项：
-
-- 在MSSQL上测试
 

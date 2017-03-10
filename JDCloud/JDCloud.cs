@@ -83,7 +83,10 @@ namespace JDCloud
 					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
 					ret[1] = GetErrInfo((int)ret[0]);
 					if (env != null && env.isTestMode)
+					{
 						ret.Add(ex1.Message);
+						ret.Add(ex1.StackTrace);
+					}
 				}
 			}
 			if (env != null)

@@ -319,6 +319,17 @@ function rs2Array(rs)
 	return ret;
 }
 
+function list2varr(ls)
+{
+	var ret = [];
+	$.each(ls.split(','), function () {
+		if (this.length == 0)
+			return;
+		ret.push(this.split(':'));
+	});
+	return ret;
+}
+
 /**
 @var myMatchers
 

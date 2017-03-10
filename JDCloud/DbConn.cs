@@ -40,13 +40,8 @@ SqlConnection (.NET)方式
 	connectionString="DATABASE=<mydb>; SERVER=<myserver>; Trusted_Connection=<Yes/No>; UID=<uid>; PWD=<pwd>;" 
 
  */
-namespace SSTk
+namespace JDCloud
 {
-	public enum DbType
-	{
-		Auto, Mssql, Mysql, MsAccess
-	}
-
 	public class SSDataTable : DataTable
 	{
 		public DbDataAdapter DataAdapter;
@@ -66,6 +61,8 @@ namespace SSTk
 	{
 		void init(DbConn cnn);
 		int getLastInsertId();
+
+		// 处理LIMIT语句，转换成SQL服务器支持的语句
 		string fixPaging(string sql);
 	}
 
@@ -77,7 +74,6 @@ namespace SSTk
 		public OnExecSql onExecSql;
 
 		protected DbConnection m_conn;
-		protected DbType m_dbType;
 		protected IDbStrategy m_dbStrategy;
 
 #region implement IDbConnection
@@ -95,28 +91,33 @@ namespace SSTk
 		public IDbCommand CreateCommand() { return m_conn.CreateCommand(); }
 		public void Open() { m_conn.Open(); }
 
-		public void Dispose() { m_conn.Dispose(); } // call m_conn.Close();
+		public void Dispose() { if (m_conn!=null) m_conn.Dispose(); } // call m_conn.Close();
 #endregion
 
 		public DbProviderFactory Provider { 
 			get;
 			protected set;
 		}
+		public string DbType
+		{
+			get;
+			protected set;
+		}
 
 		public DbConn() { }
 
-		public void Open(string connStr, string providerName = null, DbType dbtype = DbType.Auto)
+		public void Open(string connStr, string providerName = null, string dbType = null)
 		{
 			if (providerName == null || providerName.Length == 0)
 			{
 				providerName = "System.Data.Odbc";
 			}
 
-			if (dbtype == DbType.Auto)
+			if (dbType == null)
 			{
 				if (providerName == "System.Data.SqlClient")
 				{
-					dbtype = DbType.Mssql;
+					dbType = "mssql";
 				}
 				else if (providerName == "System.Data.Odbc")
 				{
@@ -126,16 +127,18 @@ namespace SSTk
 						string driver = m.Groups[1].Value;
 						if (driver.IndexOf("SQL Server", StringComparison.CurrentCultureIgnoreCase) >= 0)
 						{
-							dbtype = DbType.Mssql;
+							dbType = "mssql";
 						}
 					}
 				}
+				if (dbType == null)
+					dbType = "mysql";
 			}
+			this.DbType = dbType;
 
-			m_dbType = dbtype;
 			Provider = DbProviderFactories.GetFactory(providerName);
 
-			if (dbtype == DbType.Mssql)
+			if (dbType == "mssql")
 				m_dbStrategy = new MsSQLStrategy();
 			else
 				m_dbStrategy = new MySQLStrategy();
@@ -149,7 +152,7 @@ namespace SSTk
 /**
 使用ODBC方式连接指定类型数据库
 */
-		public void Open(DbType dbtype, string dbname, string server=null, string dbuser=null, string dbpwd=null)
+		public void OpenOdbc(string dbType, string dbname, string server=null, string dbuser=null, string dbpwd=null)
 		{
 			string connStr = dbname;
 			string authStr = null;
@@ -157,15 +160,9 @@ namespace SSTk
 			{
 				authStr = "UID=" + dbuser + ";PWD=" + dbpwd;
 			}
-			switch (dbtype)
+			switch (dbType)
 			{
-				case DbType.MsAccess:
-					//m_conn = new OleDbConnection(cnnstr);
-					// TODO: use ODBC
-					connStr = "Provider=Microsoft.Jet.OleDb.4.0;Data Source=" + dbname;
-					break;
-				
-				case DbType.Mssql:
+				case "mssql":
 					//m_conn = new SqlConnection(cnnstr);
 					if (server == null)
 						server = "127.0.0.1";
@@ -174,16 +171,22 @@ namespace SSTk
 					connStr = string.Format("Driver={SQL Server};SERVER={0}; DATABASE={1};", server, dbname) + authStr;
 					break;
 				
-				case DbType.Mysql:
+				case "mysql":
 					connStr = string.Format("DRIVER=MySQL ODBC 5.3 Unicode Driver; PORT=3306; SERVER={0}; DATABASE={1}; CHARSET=UTF8;", server, dbname);
 					if (authStr != null)
 						connStr += authStr;
 					break;
 
+				case "access":
+					//m_conn = new OleDbConnection(cnnstr);
+					// TODO: use ODBC
+					connStr = "Provider=Microsoft.Jet.OleDb.4.0;Data Source=" + dbname;
+					break;
+				
 				default:
 					throw new Exception("Unsupported Dbtype");
 			}
-			this.Open(connStr, null, dbtype);
+			this.Open(connStr, null, dbType);
 		}
 
 		public DbDataReader ExecQuery(string sql)
@@ -275,7 +278,12 @@ namespace SSTk
 		}
 		private string fixTableName(string sql)
 		{
-			return Regex.Replace(sql, @"(?<= (?:UPDATE | FROM | JOIN | INTO) \s+ )([\w|.]+)", "\"$1\"", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
+			string q = null;
+			if (DbType == "mysql")
+				q = "`$1`";
+			else
+				q = "\"$1\"";
+			return Regex.Replace(sql, @"(?<= (?:UPDATE | FROM | JOIN | INTO) \s+ )([\w|.]+)", q, RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
 		}
 	}
 
