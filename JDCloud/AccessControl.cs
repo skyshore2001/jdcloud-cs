@@ -15,8 +15,6 @@ namespace JDCloud
 		public bool isDefault;
 		// 依赖另一列
 		public string require;
-		// 已应用到最终查询中
-		public bool added;
 	}
 	public class SubobjDef
 	{
@@ -1003,13 +1001,14 @@ namespace JDCloud
 		/*
 		根据index找到vcolDef中的一项，添加join/cond到最终查询语句(但不包含res)。
 		 */
+		private ISet<int> m_vcolDefIndex = new HashSet<int>();
 		private void addVColDef(int idx)
 		{
-			if (idx < 0 || this.vcolDefs[idx].added)
+			if (idx < 0 || m_vcolDefIndex.Contains(idx))
 				return;
 
 			var vcolDef = this.vcolDefs[idx];
-			vcolDef.added = true;
+			m_vcolDefIndex.Add(idx);
 			if (vcolDef.require != null)
 			{
 				var requireCol = vcolDef.require;
