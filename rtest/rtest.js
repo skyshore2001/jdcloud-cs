@@ -70,14 +70,14 @@ describe("param函数", function() {
 	});
 	it("日期型参数", function () {
 		var dt = new Date();
+		dt.setMilliseconds(0);
 
 		var ret = callSvrSync("fn", {f: "param", name: "testDt/dt", testDt: dt.toISOString()});
 		// 服务端返回日期格式为 '/Date(1488124800000)/'
-		expect(typeof(ret) == "string").toEqual(true);
 		ret = parseDate(ret);
 		expect(ret).toEqual(dt);
 
-		var ret = callSvrSync("fn", {f: "param", name: "testDt/dt", testDt: 'today'});
+		var ret = callSvrSync("fn", {f: "param", name: "testDt/dt", testDt: 'bad-datetime'});
 		expect(ret).toJDRet(E_PARAM);
 	});
 
@@ -90,7 +90,7 @@ describe("param函数", function() {
 	});
 	it("压缩表类型-varr", function () {
 		var ret = callSvrSync("fn", {f: "param", name: "items/i:n:s:b:dt", items: "100:1:洗车:1:2016-10-11,101:1:打蜡:0:2017-10-11"});
-		expect(ret).toEqual([ [100, 1.0, "洗车", true, jasmine.any(String)], [101, 1, "打蜡", false, jasmine.any(String)]]);
+		expect(ret).toEqual([ [100, 1.0, "洗车", true, daca.anyDate("2016-10-11")], [101, 1, "打蜡", false, daca.anyDate("2017-10-11")]]);
 
 		var ret = callSvrSync("fn", {f: "param", name: "items/i:n?:s?", items: "100:1,101::打蜡"});
 		expect(ret).toEqual([ [100, 1.0, null], [101, null, "打蜡"]]);
@@ -109,71 +109,68 @@ describe("param函数", function() {
 });
 
 describe("数据库函数", function() {
-	var tm_ = new Date();
-	tm_.setMilliseconds(0); // 注意：mysql数据库不能存储毫秒
-	var addr_ = "test-addr";
-	var id_, want_;
+	var rowCtx_ = {
+		tm: new Date(),
+		addr: "test-addr",
+		id: null,
+	};
+	rowCtx_.tm.setMilliseconds(0);  // 注意：mysql数据库不能存储毫秒
 
-	beforeEach(function() {
-		genId();
-	});
-
-	// set id_, want_
 	function genId()
 	{
-		if (id_ != null)
+		if (rowCtx_.id != null)
 			return;
 
-		var tmstr = formatDate(tm_);
-		var ret = callSvrSync("fn", {f: "execOne", sql: "INSERT INTO ApiLog (tm, addr) VALUES ('" + tmstr + "', '" + addr_ + "')", getNewId: true});
+		var tmstr = formatDate(rowCtx_.tm);
+		var ret = callSvrSync("fn", {f: "execOne", sql: "INSERT INTO ApiLog (tm, addr) VALUES ('" + tmstr + "', '" + rowCtx_.addr + "')", getNewId: true});
 		expect(ret).toEqual(jasmine.any(Number));
-		id_ = ret;
-
-		want_ = {id: id_, tm: tm_, addr: addr_};
+		rowCtx_.id = ret;
 	}
 
 	it("execOne", function () {
+		genId();
 	});
 
 	it("queryAll", function () {
-		var ret = callSvrSync("fn", {f: "queryAll", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + id_, assoc: true});
-		expect($.isArray(ret) && $.isPlainObject(ret[0])).toEqual(true);
-		formatField(ret[0]);
-		expect(ret[0]).toEqual(want_);
+		genId();
+		var ret = callSvrSync("fn", {f: "queryAll", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + rowCtx_.id, assoc: true});
+		expect(ret).toEqual(jasmine.any(Array));
+		expect(ret[0]).toEqual({id: rowCtx_.id, tm: daca.anyDate(rowCtx_.tm), addr: rowCtx_.addr});
 	});
 	it("queryAll-empty", function () {
+		genId();
 		var ret = callSvrSync("fn", {f: "queryAll", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=-1", assoc: true});
-		expect($.isArray(ret) && ret.length==0).toEqual(true);
+		expect(ret).toEqual([]);
 	});
 
 	it("queryOne", function () {
-		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + id_, assoc: true});
-		formatField(ret);
-		expect(ret).toEqual(want_);
+		genId();
+		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + rowCtx_.id, assoc: true});
+		expect(ret).toEqual({id: rowCtx_.id, tm: daca.anyDate(rowCtx_.tm), addr: rowCtx_.addr});
 	});
 	it("queryOne-array", function () {
-		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + id_});
+		genId();
+		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=" + rowCtx_.id});
 		expect($.isArray(ret) && ret.length == 3).toEqual(true);
-		var ret1 = array_combine(["id","tm","addr"], ret);
-		formatField(ret1);
-		expect(ret1).toEqual(want_);
+		expect(ret).toEqual([rowCtx_.id, daca.anyDate(rowCtx_.tm), rowCtx_.addr]);
 	});
 	it("queryOne-empty", function () {
+		genId();
 		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT id,tm,addr FROM ApiLog WHERE id=-1"});
 		expect(ret).toEqual(false);
 	});
 
 	it("queryOne-scalar", function () {
-		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT tm FROM ApiLog WHERE id=" + id_});
-		expect(parseDate(ret)).toEqual(tm_);
+		genId();
+		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT tm FROM ApiLog WHERE id=" + rowCtx_.id});
+		expect(ret).toEqual(daca.anyDate(rowCtx_.tm));
 	});
 
 	it("执行错误", function () {
-		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT FROM ApiLog WHERE id=" + id_, assoc: true});
+		var ret = callSvrSync("fn", {f: "queryOne", sql: "SELECT FROM ApiLog WHERE id=" + rowCtx_.id, assoc: true});
 		expect(ret).toJDRet(E_DB);
 	});
 });
-
 
 });
 
@@ -398,7 +395,7 @@ describe("对象型接口-异常", function() {
 
 	it("表不存在", function () {
 		var ret = callSvrSync("ApiLog123.query");
-		expect(ret).toJDRet(E_PARAM);
+		expect(ret).toJDRet(E_NOAUTH);
 	});
 
 	it("操作不存在", function () {
@@ -446,7 +443,7 @@ describe("UserApiLog", function() {
 
 	it("UserApiLog.query-noauth", function () {
 		var ret = callSvrSync("UserApiLog.query");
-		expect(ret).toJDRet(E_PARAM); // TODO E_FORBIDDEN?
+		expect(ret).toJDRet(E_NOAUTH);
 	});
 	it("UserApiLog.set-forbidden", function () {
 		userLogin();
@@ -462,7 +459,7 @@ describe("UserApiLog", function() {
 		userLogin();
 		generalAdd();
 
-		var ret = callSvrSync("UserApiLog.query", {_pagesz:5});
+		var ret = callSvrSync("UserApiLog.query", {_pagesz:5, cond: "id<=" + id_});
 		expect(ret).toJDTable(["id", "userName", "!last3LogAc", "!user", "!last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条
@@ -484,7 +481,7 @@ describe("UserApiLog", function() {
 		userLogin();
 		generalAdd();
 
-		var ret = callSvrSync("UserApiLog.query", {res: "id, last3LogAc", _pagesz:5});
+		var ret = callSvrSync("UserApiLog.query", {res: "id, last3LogAc", _pagesz:5, cond: "id<=" + id_});
 		expect(ret).toJDTable(["id", "!userName", "*last3LogAc", "!user", "!last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条
@@ -502,7 +499,7 @@ describe("UserApiLog", function() {
 		userLogin();
 		generalAdd();
 
-		var ret = callSvrSync("UserApiLog.query", {res: "id, user, last3Log", _pagesz:5});
+		var ret = callSvrSync("UserApiLog.query", {res: "id, user, last3Log", _pagesz:5, cond: "id<=" + id_});
 		expect(ret).toJDTable(["id", "!userName", "!last3LogAc", "user", "last3Log"]);
 		var arr = rs2Array(ret);
 		// 至少有一条

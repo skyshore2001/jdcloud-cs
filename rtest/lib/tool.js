@@ -149,9 +149,14 @@ function formatField(obj)
 	return obj;
 }
 
-function formatDate(dt)
+// formatDate(dt, "D") -> "2016-1-1"
+// formatDate(dt) -> "2016-1-1 10:10:10"
+function formatDate(dt, fmt)
 {
-	return dt.getFullYear() + "-" + (dt.getMonth()+1) + "-" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() + ":" + dt.getSeconds();
+	if (fmt == null)
+		return dt.getFullYear() + "-" + (dt.getMonth()+1) + "-" + dt.getDate() + " " + dt.getHours() + ":" + dt.getMinutes() + ":" + dt.getSeconds();
+	if (fmt == "D")
+		return dt.getFullYear() + "-" + (dt.getMonth()+1) + "-" + dt.getDate();
 }
 
 function parseDate(str)
@@ -160,6 +165,12 @@ function parseDate(str)
 		return null;
 	if (str instanceof Date)
 		return str;
+	// unix timestamp
+	if (typeof(str) == "number")
+	{
+		return new Date(str * 1000);
+	}
+
 	var ms = str.match(/^(\d+)(?:[-\/.](\d+)(?:[-\/.](\d+))?)?/);
 	if (ms == null) {
 		ms = str.match(/Date\((\d+)\)/);
@@ -219,12 +230,22 @@ function assert(cond, errmsg)
 }
 
 var JDUtil = {
-	/*
-fields: 必须字段列表，如 ["id", "name"]；如果字段名以"!"开头，表示不可包含该字段，如 ["id", "!name"]
-parseFields(fields) -> [ {name, exists, notNull} ]
-	 */
+/**
+@fn JDUtil.parseFields(fields) -> [ {name, exists, notNull} ]
+
+- fields: 必须字段列表.
+
+示例：
+
+	fields = ["id", "name"];  // 必须含有id, name两个字段
+	fields = ["*id", "name"]; // 必须含有id, name两个字段且id字段必须有非空值
+	fields = ["*id", "name", "!pwd"]; // 必须含有id, name两个字段且id字段必须有非空值, 不能包含pwd字段。
+
+*/
 	parseFields: function (fields) {
 		var ret = [];
+		if (fields == null)
+			return ret;
 		$.each(fields, function (i, e) {
 			var one = { name: e, exists: true, notNull: false };
 			if (e[0] == "!") {
@@ -240,6 +261,17 @@ parseFields(fields) -> [ {name, exists, notNull} ]
 		return ret;
 	},
 
+/**
+@fn JDUtil.validateRet(ret, expectedCode)
+
+验证callSvrSync调用返回的ret符合筋斗云格式且返回码为expectedCode.
+一般使用toJDRet.
+
+	var ret = callSvrSync(ac, ...);
+	// JDUtil.validateRet(ret, E_DB);
+	expect(ret).toJDRet(E_DB);
+
+ */
 	validateRet: function (ret, expectedCode) {
 		if (expectedCode == 0) {
 			assert(ret !== false, "Expected successful call");
@@ -249,6 +281,20 @@ parseFields(fields) -> [ {name, exists, notNull} ]
 			assert(g_data.lastError[0] == expectedCode, "Expected fail code to be " + getErrName(expectedCode) + ", actual " + getErrName(g_data.lastError[0]));
 		}
 	},
+
+/**
+@fn JDUtil.validateTable(ret, fields)
+
+验证callSvrSync调用返回的ret符合筋斗云压缩表格式，如果指定fields，则要求必须出现指定列名。
+一般使用toJDTable:
+
+	var ret = callSvrSync(ac, ...); // ret = { h: ["id", "name"], d: [ [ 101, "andy"], [102, "beddy"] ]
+	// JDUtil.validateRet(ret, ["id", "name"]);
+	expect(ret).toJDRet(["id", "name"]); // 必须含有id, name两个字段
+	expect(ret).toJDRet(["*id", "name"]); // 必须含有id, name两个字段且id字段必须有非空值
+	expect(ret).toJDRet(["*id", "!pwd"]); // 必须含有id且值为非空, 不能包含pwd字段
+
+ */
 	validateTable: function (obj, fields) {
 		assert($.isPlainObject(obj) && $.isArray(obj.h) && $.isArray(obj.d), "Expected jdcloud table format `{h, d}`, actual " + JSON.stringify(obj));
 
@@ -276,11 +322,32 @@ parseFields(fields) -> [ {name, exists, notNull} ]
 			});
 		});
 	},
+/**
+@fn JDUtil.validateList(ret, fields)
+
+验证callSvrSync调用返回的ret符合筋斗云返回的表格式: { list=[obj] }
+
+	var ret = { list: [ {id: 101, name: "andy"}, {id: 102, name: "beddy"} ] };
+	JDUtil.validateRet(ret, ["id", "name"]);
+
+ */
 	validateList: function (obj, fields) {
 		assert($.isPlainObject(obj) && $.isArray(obj.list), "Expected JDList: `{list}`, actual " + JSON.stringify(obj));
 		this.validateObjArray(obj.list, fields);
 	},
-	validateObj: function (obj, fields, notNull) {
+
+/**
+@fn JDUtil.validateObj(ret, fields)
+
+验证ret是对象且包含指定fields。
+
+	var ret = {id: 101, name: "andy"};
+	JDUtil.validateObjArray(ret, ["id", "name"]);  // 必须含有id, name两个字段
+	JDUtil.validateObjArray(ret, ["*id", "name"]); // 必须含有id, name两个字段且id字段必须有非空值
+	JDUtil.validateObjArray(ret, ["*id", "name", "!pwd"]); // 必须含有id, name两个字段且id字段必须有非空值, 不能包含pwd字段。
+
+ */
+	validateObj: function (obj, fields) {
 		assert($.isPlainObject(obj), "Expected a plain object, actual " + JSON.stringify(obj));
 
 		var fieldSpec = this.parseFields(fields);
@@ -294,6 +361,17 @@ parseFields(fields) -> [ {name, exists, notNull} ]
 			}
 		});
 	},
+/**
+@fn JDUtil.validateObjArray(ret, fields)
+
+验证ret符合对象数组格式，如果指定fields，则要求必须出现指定列名。
+
+	var ret = [ {id: 101, name: "andy"}, {id: 102, name: "beddy"} ];
+	JDUtil.validateObjArray(ret, ["id", "name"]);  // 必须含有id, name两个字段
+	JDUtil.validateObjArray(ret, ["*id", "name"]); // 必须含有id, name两个字段且id字段必须有非空值
+	JDUtil.validateObjArray(ret, ["*id", "name", "!pwd"]); // 必须含有id, name两个字段且id字段必须有非空值, 不能包含pwd字段。
+
+ */
 	validateObjArray: function (obj, fields) {
 		assert($.isArray(obj), "Expected obj array, actual " + JSON.stringify(obj));
 		$.each(obj, function (i, e) {
@@ -450,3 +528,49 @@ var myReporter = {
 
 jasmine.getEnv().addReporter(myReporter);
 jasmine.getEnv().throwOnExpectationFailure(true);
+
+function initDaca(self)
+{
+/**
+@fn daca.anyDate()
+
+检测是否为unix timestamp格式或字符串日期格式。
+
+示例：匹配任意日期：
+
+	var ret = 1476115200;
+	// var ret = "/Date(1476115200000)/";
+	expect(ret).toEqual(daca.anyDate());
+
+示例：匹配指定日期：
+
+	var ret = parseDate("2016-1-1");
+	expect(ret).toEqual(daca.anyDate("2016-1-1"));
+
+ */
+	self.anyDate = function (dt) {
+		return new AnyDate(dt);
+	};
+	self.AnyDate = AnyDate;
+	function AnyDate(dt)
+	{
+		if (dt != null)
+			this.dt = parseDate(dt);
+	}
+	AnyDate.prototype.asymmetricMatch = function(other) {
+		var e = parseDate(other);
+		var ret = e != null && e.constructor === Date;
+		if (ret && this.dt != null)
+			return e - this.dt == 0;
+		return ret;
+	};
+	AnyDate.prototype.jasmineToString = function() {
+		if (this.dt != null)
+			return "<daca.anyDate(" + formatDate(this.dt) + ")>";
+		return '<daca.anyDate>';
+	};
+}
+
+var daca = {};
+initDaca(daca);
+

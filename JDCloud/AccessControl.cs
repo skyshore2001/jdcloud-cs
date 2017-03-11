@@ -361,7 +361,7 @@ namespace JDCloud
 						{
 							col1 += " AS " + alias;
 						}
-						this.addRes(col0, false);
+						this.addRes(col1, false);
 					}
 				}
 				// mysql可在group-by中直接用alias, 而mssql要用原始定义

@@ -173,7 +173,13 @@ namespace JDCloud
 			Assembly asm = JDEnvBase.getAsmembly();
 			obj = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
 			if (obj == null)
-				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no class)");
+			{
+				if (table == null)
+					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
+
+				int code = clsName.StartsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+				throw new MyException(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
+			}
 			Type t = obj.GetType();
 			MethodInfo mi = t.GetMethod(methodName);
 			if (mi == null)
