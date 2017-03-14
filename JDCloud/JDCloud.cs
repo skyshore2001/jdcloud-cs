@@ -47,7 +47,16 @@ namespace JDCloud
 				}
 
 				string ac = m.Groups[1].Value;
-				ret[1] = env.callSvc(ac);
+				try
+				{
+					ret[1] = env.callSvc(ac);
+				}
+				catch (TargetInvocationException ex)
+				{
+					if (ex.InnerException != null)
+						throw ex.InnerException;
+					throw ex;
+				}
 				ok = true;
 			}
 			catch (DirectReturn)
@@ -63,30 +72,12 @@ namespace JDCloud
 			}
 			catch (Exception ex)
 			{
-				Exception ex1 = ex.InnerException;
-				if (ex1 == null)
-					ex1 = ex;
-				if (ex1 is MyException)
+				ret[0] = ex is DbException ? E_DB : E_SERVER;
+				ret[1] = GetErrInfo((int)ret[0]);
+				if (env != null && env.isTestMode)
 				{
-					MyException ex2 = ex1 as MyException;
-					ret[0] = ex2.Code;
-					ret[1] = ex2.Message;
-					ret.Add(ex2.DebugInfo);
-				}
-				else if (ex1 is DirectReturn)
-				{
-					ok = true;
-					dret = true;
-				}
-				else
-				{
-					ret[0] = ex1 is DbException ? E_DB : E_SERVER;
-					ret[1] = GetErrInfo((int)ret[0]);
-					if (env != null && env.isTestMode)
-					{
-						ret.Add(ex1.Message);
-						ret.Add(ex1.StackTrace);
-					}
+					ret.Add(ex.Message);
+					ret.Add(ex.StackTrace);
 				}
 			}
 			if (env != null)
