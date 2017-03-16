@@ -137,7 +137,7 @@ namespace JDCloud
 					{
 						if (_POST[field] != null && !(ac == "add" && this.requiredFields.Contains(field)))
 						{
-							logit("!!! warn: attempt to chang readonly field `field`");
+							logit(string.Format("!!! warn: attempt to chang readonly field `{0}`", field));
 							_POST.Remove(field);
 						}
 					}
@@ -149,7 +149,7 @@ namespace JDCloud
 						{
 							if (_POST[field] != null)
 							{
-								logit("!!! warn: attempt to change readonly field `field`");
+								logit(string.Format("!!! warn: attempt to change readonly field `{0}`", field));
 								_POST.Remove(field);
 							}
 						}
