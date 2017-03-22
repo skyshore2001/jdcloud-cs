@@ -142,14 +142,13 @@ namespace JDCloud
 
 		public class CallSvcOpt
 		{
-			public NameValueCollection _GET, _POST;
+			public bool backupEnv = false;
 			public bool isCleanCall = false;
-			public string ac;
 			public bool asAdmin = false;
 		}
 
 		// TODO: asAdmin
-		public object callSvc(string ac, CallSvcOpt opt = null)
+		public object callSvc(string ac, JsObject param = null, JsObject postParam = null, CallSvcOpt opt = null)
 		{
 			Match m = Regex.Match(ac, @"(\w+)(?:\.(\w+))?$");
 			string ac1 = null;
@@ -189,28 +188,26 @@ namespace JDCloud
 			NameValueCollection[] bak = null;
 			if (opt != null)
 			{
-				if (opt.isCleanCall || opt._GET != null|| opt._POST != null)
-				{
+				if (opt.backupEnv)
 					bak = new NameValueCollection[] { this._GET, this._POST };
-					if (opt.isCleanCall)
-					{
-						this._GET = new NameValueCollection();
-						this._POST = new NameValueCollection();
-					}
-					if (opt._GET != null)
-					{
-						foreach (string k in opt._GET)
-						{
-							this._GET[k] = opt._GET[k];
-						}
-					}
-					if (opt._POST != null)
-					{
-						foreach (string k in opt._POST)
-						{
-							this._POST[k] = opt._POST[k];
-						}
-					}
+				if (opt.isCleanCall)
+				{
+					this._GET = new NameValueCollection();
+					this._POST = new NameValueCollection();
+				}
+			}
+			if (param != null)
+			{
+				foreach (var kv in param)
+				{
+					this._GET[kv.Key] = kv.Value.ToString();
+				}
+			}
+			if (postParam != null)
+			{
+				foreach (var kv in postParam)
+				{
+					this._POST[kv.Key] = kv.Value.ToString();
 				}
 			}
 

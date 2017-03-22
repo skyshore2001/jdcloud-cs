@@ -121,3 +121,11 @@
 - query/get/del时，只能操作当前用户自己的记录。
 - 不允许set操作
 - query结果默认按id倒排序.
+
+### 非标准方法
+
+	UserApiLog.listByAc(ac, _pagesz?, _pagekey?) -> [{id, ...}]
+
+- 权限: AUTH_USER
+- 相当于调用 UserApiLog.query(cond="ac={ac}", _fmt=list), 支持分页。
+

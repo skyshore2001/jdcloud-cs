@@ -211,12 +211,15 @@ WHERE userId=" + this.uid + @" ORDER BY id DESC LIMIT 3) t
 			this.addCond("userId=" + this.uid);
 		}
 
-		public object api_hello()
+		public object api_listByAc()
 		{
-			return new JsObject{
-				{"id", 100},
-				{"name", "hello"}
+			var ac = mparam("ac", "G") as string;
+			var param = new JsObject() {
+				{"_fmt", "list"},
+				{"cond", "ac=" + Q(ac)}
 			};
+
+			return env.callSvc("UserApiLog.query", param);
 		}
 	}
 }

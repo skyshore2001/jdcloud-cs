@@ -4,7 +4,8 @@
 准备：
 
 User表中添加数据：
-uname="rtest", pwd="1234", name="jdcloud-test"
+
+insert into User (uname, pwd, name) values ('rtest', '1234', 'jdcloud-test')
  */
 // tools
 
@@ -509,5 +510,18 @@ describe("UserApiLog", function() {
 			id: loginCtx.uid, name: jasmine.any(String)
 		});
 		expect($.isArray(arr[0].last3Log) && arr[0].last3Log.length > 0).toEqual(true);
+	});
+
+	it("UserApiLog.listByAc-非标方法", function () {
+		userLogin();
+		generalAdd();
+
+		var ret = callSvrSync("UserApiLog.listByAc", {ac: "UserApiLog.add", _pagesz:1});
+		expect(ret).toJDList(["id", "userName", "!last3LogAc", "!user", "!last3Log"]);
+		var arr = ret.list;
+		// 至少有一条, 由于设置了_pagesz=1，刚好一条
+		expect(arr.length == 1).toEqual(true);
+		expect(arr[0].id).toEqual(id_);
+		expect(arr[0].userName != null).toEqual(true);
 	});
 });
