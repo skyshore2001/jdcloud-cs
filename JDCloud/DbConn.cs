@@ -109,7 +109,7 @@ namespace JDCloud
 			get;
 			protected set;
 		}
-		public IDbStrategy DbStragety
+		public IDbStrategy DbStrategy
 		{
 			get { return m_dbStrategy; }
 		}

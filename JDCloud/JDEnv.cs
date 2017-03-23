@@ -168,10 +168,10 @@ namespace JDCloud
 				methodName = "api_" + m.Groups[1].Value;
 			}
 
-			JDApiBase obj = null;
+			JDApiBase api = null;
 			Assembly asm = JDEnvBase.getAsmembly();
-			obj = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
-			if (obj == null)
+			api = asm.CreateInstance("JDApi." + clsName) as JDApiBase;
+			if (api == null)
 			{
 				if (table == null)
 					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
@@ -179,11 +179,11 @@ namespace JDCloud
 				int code = clsName.StartsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 				throw new MyException(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
 			}
-			Type t = obj.GetType();
+			Type t = api.GetType();
 			MethodInfo mi = t.GetMethod(methodName);
 			if (mi == null)
 				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
-			obj.env = this;
+			api.env = this;
 
 			NameValueCollection[] bak = null;
 			if (opt != null)
@@ -214,15 +214,15 @@ namespace JDCloud
 			object ret = null;
 			if (clsName == "Global")
 			{
-				ret = mi.Invoke(obj, null);
+				ret = mi.Invoke(api, null);
 			}
 			else if (t.IsSubclassOf(typeof(AccessControl)))
 			{
-				AccessControl accessCtl = obj as AccessControl;
+				AccessControl accessCtl = api as AccessControl;
 				accessCtl.init(table, ac1);
 				accessCtl.before();
-				object rv = mi.Invoke(obj, null);
-				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, obj, null);
+				object rv = mi.Invoke(api, null);
+				//ret[1] = t.InvokeMember(methodName, BindingFlags.InvokeMethod, null, api, null);
 				accessCtl.after(ref rv);
 				ret = rv;
 			}

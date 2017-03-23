@@ -359,13 +359,13 @@ namespace JDCloud
 						var col1 = col;
 						if (alias != null)
 						{
-							col1 += " AS " + alias;
+							col1 += " " + alias;
 						}
 						this.addRes(col1, false);
 					}
 				}
 				// mysql可在group-by中直接用alias, 而mssql要用原始定义
-				if (env.cnn.DbStragety.acceptAliasInOrderBy())
+				if (env.cnn.DbStrategy.acceptAliasInOrderBy())
 					cols.Add(alias != null ? alias : col);
 				else
 					cols.Add(col);
@@ -400,7 +400,7 @@ namespace JDCloud
 						if (this.addVCol(col1, true, "-") != false)
 						{
 							// mysql可在order-by中直接用alias, 而mssql要用原始定义
-							if (! env.cnn.DbStragety.acceptAliasInOrderBy())
+							if (! env.cnn.DbStrategy.acceptAliasInOrderBy())
 								return this.vcolMap[col1].def;
 							return col1;
 						}
@@ -974,7 +974,7 @@ namespace JDCloud
 			this.addVColDef(this.vcolMap[col].vcolDefIdx);
 			if (alias != null) {
 				if (alias != "-")
-					this.addRes(this.vcolMap[col].def + " AS " + alias, false);
+					this.addRes(this.vcolMap[col].def + " " + alias, false);
 			}
 			else {
 				this.addRes(this.vcolMap[col].def0, false);
