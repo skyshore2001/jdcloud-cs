@@ -263,8 +263,7 @@ namespace JDCloud
 					rowData.Remove(field);
 				}
 			}
-			if (rowData.ContainsKey("pwd"))
-				rowData["pwd"] = "****";
+			rowData.RemoveIf_jd(k => k[0] == '_' || k == "pwd");
 			// TODO: flag_handleResult(rowData);
 			this.onHandleRow(rowData);
 		}
@@ -607,7 +606,7 @@ namespace JDCloud
 						continue;
 					string sql1 = opt.sql.Replace("%d", id.ToString()); // e.g. "select * from OrderItem where orderId=%d"
 					bool tryCache = sql1 == opt.sql;
-					JsArray ret1 = queryAll(sql1, true, true);
+					JsArray ret1 = queryAll(sql1, true, tryCache);
 					if (opt.wantOne) 
 					{
 						if (ret1.Count > 0)
@@ -739,7 +738,7 @@ namespace JDCloud
 
 			// setup cond for partialQuery
 			if (orderSql == null)
-				orderSql = defaultSort;
+				orderSql = this.filterOrderby(defaultSort);
 
 			if (enableTotalCnt == false && pagekey_o != null && pagekey == 0)
 			{

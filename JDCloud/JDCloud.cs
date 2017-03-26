@@ -53,9 +53,10 @@ namespace JDCloud
 				}
 				catch (TargetInvocationException ex)
 				{
-					if (ex.InnerException != null)
-						throw ex.InnerException;
-					throw ex;
+					Exception ex1 = ex;
+					while (ex1.InnerException != null && ex1 is TargetInvocationException)
+						ex1 = ex1.InnerException;
+					throw ex1;
 				}
 				ok = true;
 			}

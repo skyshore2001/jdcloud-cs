@@ -37,6 +37,23 @@ namespace JDCloud
 		}
 	}
 
+	public static class Tool
+	{
+		public static void RemoveIf_jd<K, V>(this IDictionary<K, V> m, Predicate<K> cond)
+		{
+			var rmKeys = new HashSet<K>();
+			foreach (var k in m.Keys)
+			{
+				if (cond(k))
+					rmKeys.Add(k);
+			}
+			foreach (var k in rmKeys)
+			{
+				m.Remove(k);
+			}
+		}
+	}
+
 	public abstract class JDEnvBase
 	{
 		public const string ImpClassName = "JDApi.JDEnv";

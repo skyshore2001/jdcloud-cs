@@ -348,7 +348,7 @@ namespace JDCloud
 		public string fixPaging(string sql)
 		{
 			// for MSSQL: LIMIT -> TOP+ROW_NUMBER
-			return Regex.Replace(sql, @"SELECT(.*?) (?: 
+			return Regex.Replace(sql, @"SELECT(.*) (?: 
 	LIMIT\s+(\d+)
 	| (ORDER\s+BY.*?)\s*LIMIT\s+(\d+),(\d+)  
 )\s*$" 
