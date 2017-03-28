@@ -991,7 +991,7 @@ this.hiddenFields = new List<string>(){"addr", "tm"};
 - 在add操作中，由程序自动填写"tm"字段。
 
 ```cs
-public class AC_ApiLog1 : AccessControl
+public class AC_ApiLog : AccessControl
 {
 	protected override void onInit()
 	{
@@ -1139,7 +1139,7 @@ class AC1_Ordr : AccessControl
 	}
 
 	// get/set/del接口会回调
-	protected function onValidateId()
+	protected override void onValidateId()
 	{
 		var uid = _SESSION["uid"];
 		var id = mparam("id");
@@ -1163,7 +1163,7 @@ class AC1_Ordr : AccessControl
 
 MyException的第二个参数是内部调试信息，第三个参数是对用户友好的报错信息，比如：
 
-	throw new MyException(E_FORBIDDEN, "order id {$id} does not belong to user {$uid}", "不是你的订单，不可操作");
+	throw new MyException(E_FORBIDDEN, string.Format("order id {0} does not belong to user {1}", id, uid), "不是你的订单，不可操作");
 
 ### 虚拟字段
 
