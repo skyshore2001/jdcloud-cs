@@ -112,7 +112,7 @@ namespace JDCloud
 			this._GET = new NameValueCollection(ctx.Request.QueryString);
 			this._POST = new NameValueCollection(ctx.Request.Form);
 
-			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TESTMODE"] ?? "0") != 0;
+			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TEST_MODE"] ?? "0") != 0;
 			this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"] ?? "0");
 
 			this.appName = api.param("_app", "user", "G") as string;

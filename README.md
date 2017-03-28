@@ -46,7 +46,7 @@ public class AC_ApiLog : AccessControl
 **[函数型接口 - 简单直接]**
 
 除了对象型接口，还有一类叫函数型接口，比如要实现一个接口叫"getInfo"用于返回一些信息，开发起来也非常容易，只要在名为Global的类中定义一个函数：
-```php
+```cs
 public class Global : JDApiBase
 {
 	public object api_getInfo()
@@ -70,7 +70,7 @@ public class Global : JDApiBase
 
 权限包括几种，比如根据登录类型不同，分为用户、员工、超级管理员等角色，每种角色可访问的数据表、数据列（即字段）有所不同，一般称为授权(auth)。
 授权控制不同角色的用户可以访问哪些对象或函数型接口，比如getInfo接口只许用户登录后访问：
-```php
+```cs
 public object api_getInfo()
 {
 	checkAuth(AUTH_USER); // 在应用配置中，已将AUTH_USER定义为用户权限，在用户登录后获得
@@ -79,7 +79,7 @@ public object api_getInfo()
 ```
 
 再如ApiLog对象接口只允许员工登录后访问，且限制为只读访问（只允许get/query接口），不允许用户或游客访问，只要定义：
-```php
+```cs
 // 不要定义AC_ApiLog，改为AC2_ApiLog
 public class AC2_ApiLog : AccessControl
 {
@@ -93,7 +93,7 @@ public class AC2_ApiLog : AccessControl
 
 通常权限还控制对同一个表中数据行的可见性，比如即使同是员工登录，普通员工只能看自己的操作日志，经理可以看到所有日志。
 这种数据行权限，也称为Data ownership，一般通过在查询时追加限制条件来实现。假设已定义一个权限PERM_MGR，对应经理权限，然后实现权限控制：
-```php
+```cs
 public class AC2_ApiLog : AccessControl
 {
 	...
@@ -153,12 +153,12 @@ public class AC2_ApiLog : AccessControl
 其它参数配置一般在appSettings节中，如：
 
 	<appSettings>
-		<add key="P_TESTMODE" value="1" />
+		<add key="P_TEST_MODE" value="1" />
 		<add key="P_DEBUG" value="9" />
 		<add key="P_DBTYPE" value="mssql" />
 	</appSettings>
 
-一般在开发时，会激活测试模式(P_TESTMODE=1)，可返回更多调试信息; 
+一般在开发时，会激活测试模式(P_TEST_MODE=1)，可返回更多调试信息; 
 可用P_DEBUG设置调试信息输出等级，当值为9（最高）时，可以查看SQL调用日志，这在调试SQL语句时很有用。
 此外，测试模式还会开放某些内部接口，以及缺省允许跨域访问，便于通过web页面测试接口。
 **注意线上生产环境绝不可设置为测试模式。**
@@ -174,16 +174,10 @@ public class AC2_ApiLog : AccessControl
 		</httpHandlers>
 	</system.web>
 
-上面是使用IIS经典模式部署，如果以IIS集成模式部署，则应设置为：
-
-	<system.webServer>
-		<handlers>
-			<add name="JDCloud.JDHandler" path="api/*" verb="*" type="JDCloud.JDHandler" />
-		</handlers>
-	</system.webServer>
+这是使用IIS经典模式部署时的配置，在调试时可以就这样配置。如果要用IIS集成模式部署，应注释掉这段，下面会有示例。
 
 为了学习接口编程，我们将JDCloudDemo演示工程中的api.cs文件清空，从头开始来写，以暴露ApiLog对象为例，在api.cs中添加代码：
-```php
+```cs
 using JDCloud;
 
 namespace JDApi
@@ -222,6 +216,29 @@ namespace JDApi
 
 	删除对象
 	ApiLog.del(id)
+
+在Visual studio中编译好JDCloudDemo工程，直接运行，就会使用VS自带的测试服务器运行起来（工程中设置了端口为59905），这时便可以在浏览器中访问接口：
+
+	http://localhost:59905/api/ApiLog.query
+
+也可以在IIS中新建一个应用程序（比如mysvc），指向JDCloudDemo工程目录，注意新版本的IIS一般默认应用程序池为“集成模式”，需要为应用新建一个“经典模式”的应用程序池，使用.net framework至少4.0版本。
+
+这样便可以在浏览器中访问：
+
+	http://localhost/mysvc/api/ApiLog.query
+
+注意：在经典模式下，某些IIS版本还需要配置路径"api/*"使用aspnet来处理才能运行，可在IIS中添加一个处理程序映射：
+添加模块映射，路径为"api/*"，模块为IsapiModule，可执行文件为"aspnet_isapi.dll"（为32位或64位，全路径一般为"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\aspnet_isapi.dll"）。
+
+如果就想使用IIS集成模式，可以修改web.config：
+
+	<system.webServer>
+		<handlers>
+			<add name="JDCloud.JDHandler" path="api/*" verb="*" type="JDCloud.JDHandler" />
+		</handlers>
+	</system.webServer>
+
+然后注释掉配置文件中对IIS经典模式的配置（即`<system.web>`那段配置）即可。
 
 **[接口原型的描述方式]**
 
@@ -361,7 +378,7 @@ query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
 	- 权限：AUTH_USER (必须用户登录后才可用)
 
 我们使用模拟数据实现接口，函数名规范为`api_{接口名}`，写在类JDApi.Global下：
-```php
+```cs
 namespace JDApi
 {
 	public class Global : JDApiBase
@@ -382,7 +399,7 @@ namespace JDApi
 JsObject是框架提供的通用对象，其原型是一个`Dictionary<string, object>`，类似的还有JsArray，其原型是`List<object>`，两者相互组合，可模拟Javascript中的对象和数组，
 例如创建一个Person对象具有复杂数据结构 `[ {id, name, addr={country, city}, carIds=[id,...] ]`：
 
-```php
+```cs
 new JsArray() {
 	new JsObject() {
 		{"id", 100},
@@ -510,7 +527,7 @@ new JsArray() {
 然后在JDEnv类中定义有一个重要的回调函数`onGetPerms`，它将根据登录情况或全局变量来取出所有当前可能有的权限，
 常用的检查权限的函数hasPerm/checkAuth都将调用它:
 
-```php
+```cs
 namespace JDApi
 {
 	public class JDEnv : JDEnvBase
@@ -557,7 +574,7 @@ namespace JDApi
 ### 登录与退出
 
 上节我们已经了解到，登录与权限检查密切相关，需要将用户信息存入session中，登录接口的大致实现如下：
-```php
+```cs
 public object api_login()
 {
 	type = getAppType();
@@ -576,7 +593,7 @@ public object api_login()
 定义一个函数型接口，函数名称一定要符合 `api_{接口名}` 的规范。接口名以小写字母开头。
 在接口实现时，一般应根据接口中的权限说明，使用checkAuth函数进行权限检查。
 
-```php
+```cs
 public class JDEnv : JDEnvBase
 {
 	// 自定义登录类型，从0x4开始。
@@ -735,7 +752,7 @@ param/mparam除了检查简单类型，还支持一些复杂类型，比如"/i+"
 
 或
 
-```php
+```cs
 struct HelloRet
 {
 	public int id;
@@ -787,7 +804,7 @@ public object api_hello()
 	[-1, "认证失败"]
 
 常用的其它返回码还有E_PARAM（参数错）, E_FORBIDDEN（无权限操作）等:
-```php
+```cs
 const E_ABORT = -100; // 要求客户端不报错
 const E_PARAM=1; // 参数不合法
 const E_NOAUTH=2; // 未认证，一般要求前端跳转登录页面
@@ -799,7 +816,7 @@ const E_FORBIDDEN=5; // 无操作权限，不允许访问
 **[立即返回]**
 
 接口除了通过return来返回数据，还可以抛出DirectReturn异常，立即中断执行并返回结果，例如：
-```php
+```cs
 public object api_hello()
 {
 	// env.ctx.Response.ContentType = "application/json";
@@ -816,7 +833,7 @@ echo是JDApiBase中的工具函数，相当于 env.ctx.Response.Write().
 	pic() -> 图片内容
 	
 注意：该接口直接返回图片内容，不符合筋斗云`[0, JSON数据]`的返回规范，所以用DirectReturn立即返回，避免框架干预：
-```php
+```cs
 void api_pic()
 {
 	header("Content-Type", "image/jpeg");
@@ -915,7 +932,7 @@ queryOne只返回首行数据，特别地，如果返回行中只有一列，则
 **[支持数据库事务]**
 
 假如有一个用户用帐户余额给订单付款的接口，先更新订单状态，再更新用户帐户余额：
-```php
+```cs
 public object api_payOrder()
 {
 	execOne("UPDATE Ordr SET status='已付款'...");
@@ -948,7 +965,7 @@ public object api_payOrder()
 ### 定制操作类型和字段
 
 对象接口通过继承AccessControl类来实现，默认允许5个标准对象操作，可以在onInit回调中改写属性`allowedAc`来限定允许的操作：
-```php
+```cs
 public class AC_ApiLog : AccessControl
 {
 	protected override void  onInit()
@@ -960,7 +977,7 @@ public class AC_ApiLog : AccessControl
 ```
 
 缺省get/query操作返回ApiLog的所有字段，可以用属性`hiddenFields`隐藏一些字段，比如不返回"addr"和"tm"字段：
-```php
+```cs
 this.hiddenFields = new List<string>(){"addr", "tm"};
 ```
 
@@ -973,7 +990,7 @@ this.hiddenFields = new List<string>(){"addr", "tm"};
 - "tm"字段为只读字段，即在add/set接口中如果填值则忽略（但不报错）；
 - 在add操作中，由程序自动填写"tm"字段。
 
-```php
+```cs
 public class AC_ApiLog1 : AccessControl
 {
 	protected override void onInit()
@@ -1003,7 +1020,7 @@ public class AC_ApiLog1 : AccessControl
 在对象型接口中，通过绑定访问控制类与权限，来实现不同角色通过不同的类来控制。
 
 比如前例中ApiLog对象接口允许员工登录(AUTH_EMP)后访问，只要定义：
-```php
+```cs
 class AC2_ApiLog : AccessControl
 {
 	...
@@ -1011,7 +1028,7 @@ class AC2_ApiLog : AccessControl
 ```
 
 那么为什么AC2前缀对应员工权限呢？这需要实现一个重要回调函数`JDEnv.onCreateAC`，由它来实现类与权限的绑定：
-```php
+```cs
 
 public class JDEnv : JDEnvBase
 {
@@ -1070,7 +1087,7 @@ public class JDEnv : JDEnvBase
 上面接口原型描述中，get接口用"..."省略了详细的返回字段，因为返回对象的字段与query接口是一样的，两者写清楚一个即可。
 
 实现对象型接口如下：
-```php
+```cs
 class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1112,7 +1129,7 @@ class AC1_Ordr : AccessControl
 我们把需求稍扩展一下，现在允许set/del操作，即用户可以更改和删除自己的订单。
 
 可以这样实现：
-```php
+```cs
 class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1154,7 +1171,7 @@ MyException的第二个参数是内部调试信息，第三个参数是对用户
 其中，表的字段就可直接映射为对象的属性。对于不在对象主表中定义的字段，统称为虚拟字段。
 
 通过属性`vcolDefs`来定义虚拟字段，最简单的一类虚拟字段是字段别名，比如在`AC1_Ordr.onInit`中设置:
-```php
+```cs
 this.vcolDefs = new List<VcolDef>() {
 	new VcolDef() {
 		res = new List<string>() { "t0.id orderId", "t0.dscr description" }
@@ -1191,7 +1208,7 @@ this.vcolDefs = new List<VcolDef>() {
 	Ordr.query(cond="userName LIKE '%john%'", res="id,dscr")
 
 实现时，通过设置属性`vcolDefs`实现这些关联字段：
-```php
+```cs
 public class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1224,7 +1241,7 @@ public class AC1_Ordr : AccessControl
 注意：userName字段不直接与Rating表关联，而是通过Ordr表桥接到User表才能取到。
 
 需要在vcolDefs定义"userName"字段时，使用require选项指定依赖字段：
-```php
+```cs
 public class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1262,7 +1279,7 @@ public class AC1_Ordr : AccessControl
 订单中有一个amount字段表示金额，由于可能存在折扣或优惠，它不一定等于OrderItem中每个产品价格之和。
 现在希望增加一个amount2字段表示原价，可以实现为：
 
-```php
+```cs
 public class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1345,7 +1362,7 @@ public class AC1_Ordr : AccessControl
 上面接口原型描述中，字段orderLog前面的"@"标记表示它是一个数组，在返回值介绍中列出了它的数据结构。
 
 实现：
-```php
+```cs
 public class AC1_Ordr : AccessControl
 {
 	protected override void onInit()
@@ -1395,7 +1412,7 @@ public class AC1_Ordr : AccessControl
 	- 权限：AUTH_EMP
 
 EmpLog类似一个数据库视图，是一个虚拟对象或虚拟表，筋斗云可直接使用AccessControl创建虚拟表，代码如下：
-```php
+```cs
 public class AC2_EmpLog : AccessControl
 {
 	protected override void onInit()
@@ -1447,7 +1464,7 @@ query接口中可以通过"orderby"来指定排序方式，如果未指定，默
 	- 用户只能操作自己的订单
 
 只要在相应的访问控制类中，添加名为`api_{非标准接口名}`的函数即可：
-```php
+```cs
 public class AC1_Ordr : AccessControl
 {
 	// "Ordr.cancel"接口
@@ -1467,7 +1484,7 @@ public class AC1_Ordr : AccessControl
 ### 接口返回前回调
 
 示例：添加订单到Ordr表时，自动添加一条"创建订单"日志到OrderLog表，可以这样实现：
-```php
+```cs
 class AC1_Ordr : AccessControl
 {
 	protected override void onValidate()
@@ -1500,7 +1517,7 @@ class AC1_Ordr : AccessControl
 	- status: "CR" - 新创建, "PA" - 已付款
 	- statusStr: 状态名称，用中文表示，当有status返回时则同时返回该字段
 
-```php
+```cs
 class AC1_Ordr : AccessControl
 {
 	public static readonly Dictionary<string, string> statusStr = new Dictionary<string, string>() {
