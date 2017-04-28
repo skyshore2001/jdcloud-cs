@@ -23,6 +23,13 @@ namespace JDCloud
 
 	public class DirectReturn : Exception
 	{
+		public Object retVal;
+		public DirectReturn() {}
+
+		public DirectReturn(Object retVal)
+		{
+			this.retVal = retVal;
+		}
 	}
 
 	public class MyException : Exception

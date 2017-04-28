@@ -44,7 +44,10 @@ namespace JDCloud
 				{
 					context.Response.AddHeader("Access-Control-Allow-Origin", origin);
 					context.Response.AddHeader("Access-Control-Allow-Credentials", "true");
+					context.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
 				}
+				if (context.Request.HttpMethod == "OPTIONS")
+					throw new DirectReturn();
 
 				string ac = m.Groups[1].Value;
 				try
@@ -60,10 +63,15 @@ namespace JDCloud
 				}
 				ok = true;
 			}
-			catch (DirectReturn)
+			catch (DirectReturn ex)
 			{
 				ok = true;
-				dret = true;
+				if (ex.retVal != null) {
+					ret[1] = ex.retVal;
+				}
+				else {
+					dret = true;
+				}
 			}
 			catch (MyException ex)
 			{
