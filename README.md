@@ -303,9 +303,9 @@ curl用"-d"参数指定参数通过HTTP body来传递，由于默认使用HTTP P
 
 返回的格式称为压缩表，"h"为表头字段，"d"为表的数据，在接口描述中用`table(id, 其它字段...)`表示。
 
-query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
+query接口也支持常用的数组返回，需要加上`fmt=list`参数：
 
-	curl http://localhost/mysvc/api/ApiLog.query -d "_fmt=list"
+	curl http://localhost/mysvc/api/ApiLog.query -d "fmt=list"
 
 返回示例：
 
@@ -318,11 +318,11 @@ query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
 		"nextkey":11349
 	}]
 
-还可以将`_fmt`参数指定为"csv", "excel", "txt"等，在浏览器访问时可直接下载相应格式的文件，读者可自己尝试。
+还可以将`fmt`参数指定为"csv", "excel", "txt"等，在浏览器访问时可直接下载相应格式的文件，读者可自己尝试。
 
-返回的nextkey字段表示数据未完，可以用_pagekey字段来取下一页，还可指定一次取的数据条数，用_pagesz字段：
+返回的nextkey字段表示数据未完，可以用pagekey字段来取下一页，还可指定一次取的数据条数，用pagesz字段：
 
-	curl "http://localhost/mysvc/api/ApiLog.query?_pagekey=11349&_pagesz=5"
+	curl "http://localhost/mysvc/api/ApiLog.query?pagekey=11349&pagesz=5"
 
 直到返回数据中没有nextkey字段，表示已到最后一页。
 
@@ -334,7 +334,7 @@ query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
 甚至可以做统计，比如查看2016年1月里，列出访问次数排名前10的地址，以及每个地址访问了多少次服务器，也可以通过query接口直接查出。
 做一个按addr字段的分组统计(gres参数)：
 
-	curl http://localhost/mysvc/api/ApiLog.query -d "gres=addr" -d "res=count(*) cnt" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=cnt desc" -d "_pagesz=10"
+	curl http://localhost/mysvc/api/ApiLog.query -d "gres=addr" -d "res=count(*) cnt" -d "cond=tm>='2016-1-1' and tm<'2016-2-1'" -d "orderby=cnt desc" -d "pagesz=10"
 
 输出示例：
 
@@ -352,7 +352,7 @@ query接口也支持常用的数组返回，需要加上`_fmt=list`参数：
 		res="count(*) cnt"
 		cond="tm>'2016-1-1' and tm<'2016-2-1'"
 		orderby="cnt desc"
-		_pagesz=10
+		pagesz=10
 	)
 	->
 	{

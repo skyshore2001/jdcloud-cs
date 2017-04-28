@@ -215,7 +215,7 @@ WHERE userId=" + this.uid + @" ORDER BY id DESC LIMIT 3) t
 		{
 			var ac = mparam("ac", "G") as string;
 			var param = new JsObject() {
-				{"_fmt", "list"},
+				{"fmt", "list"},
 				{"cond", "ac=" + Q(ac)}
 			};
 
