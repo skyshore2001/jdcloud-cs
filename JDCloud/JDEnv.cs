@@ -7,6 +7,8 @@ using System.Collections.Specialized;
 using System.Reflection;
 using System.Configuration;
 using System.Text.RegularExpressions;
+using System.IO;
+using System.Collections;
 
 /*
 对外接口
@@ -83,6 +85,7 @@ namespace JDCloud
 
 		public HttpContext ctx;
 		public NameValueCollection _GET, _POST;
+		public object JsonContent;
 
 		public JDApiBase api;
 
@@ -124,6 +127,22 @@ namespace JDCloud
 
 			this.appName = api.param("_app", "user", "G") as string;
 			this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
+
+			if (ctx.Request.ContentType != null && ctx.Request.ContentType.IndexOf("/json") > 0)
+			{
+				var rd = new StreamReader(ctx.Request.InputStream);
+				var jsonStr = rd.ReadToEnd();
+				this.JsonContent = this.api.jsonDecode(jsonStr);
+				if (JsonContent is IDictionary<string, object>) 
+				{
+					var dict = (IDictionary<string, object>)JsonContent;
+					foreach (var kv in dict)
+					{
+						if (!(kv.Value is IList || kv.Value is IDictionary))
+							this._POST[kv.Key] = kv.Value.ToString();
+					}
+				}
+			}
 
 			if (this.isTestMode)
 			{

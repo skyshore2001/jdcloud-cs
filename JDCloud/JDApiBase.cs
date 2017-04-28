@@ -8,6 +8,7 @@ using System.Data.Common;
 using System.Web;
 using System.Web.Script.Serialization;
 using System.Text.RegularExpressions;
+using System.Collections;
 
 /*
 在JDApiBase中实现工具函数。
@@ -221,6 +222,14 @@ namespace JDCloud
 				val = _GET[name];
 			if ((val == null && coll == null) || coll == "P")
 				val = _POST[name];
+			// 如果未指定类型(默认"s")或"js"类型，可以从JsonContent中取数组或对象类型。
+			if (val == null && (coll == null || coll == "P") && (type=="s" || type=="js") && env.JsonContent is IDictionary)
+			{
+				object val0 = null;
+				var dict = env.JsonContent as IDictionary<string, object>;
+				if (dict.TryGetValue(name, out val0))
+					return val0;
+			}
 			if (val == null && defVal != null)
 				return defVal;
 
@@ -470,6 +479,12 @@ namespace JDCloud
 			if (doFormat)
 				retStr = formatJson(retStr);
 			return retStr;
+		}
+
+		public object jsonDecode(string jsonStr)
+		{
+			var ser = new JavaScriptSerializer();
+			return ser.DeserializeObject(jsonStr);
 		}
 
 		public string formatJson(string s)
