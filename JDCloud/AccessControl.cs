@@ -116,149 +116,145 @@ namespace JDCloud
 			return 0;
 		}
 
-		public void before()
+		protected void initQuery()
 		{
-			if (this.allowedAc != null && stdAc.Contains(ac) && !this.allowedAc.Contains(ac))
-				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
+			string gres = param("gres", null, null, false) as string;
+			string res = param("res", null, null, false) as string;
+			sqlConf = new SqlConf() {
+				res = new List<string>{},
+				gres = gres,
+				cond = new List<string>{param("cond", null, null, false) as string},
+				join = new List<string>(),
+				orderby = param("orderby", null, null, false) as string,
+				subobj = new Dictionary<string, SubobjDef>(),
+				union = param("union", null, null, false) as string,
+				distinct = (bool)param("distinct/b", false)
+			};
 
-			if (ac == "get" || ac == "set" || ac == "del") {
-				this.onValidateId();
-				this.id = (int)mparam("id");
+			this.initVColMap();
+
+			/* TODO
+			// support internal param res2/join/cond2
+			if ((res2 = param("res2")) != null) {
+				if (! is_array(res2))
+					throw new MyException(E_SERVER, "res2 should be an array: `res2`");
+				foreach (res2 as e)
+					this.addRes(e);
+			}
+			if ((join=param("join")) != null) {
+				this.addJoin(join);
+			}
+			if ((cond2 = param("cond2")) != null) {
+				if (! is_array(cond2))
+					throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
+				foreach (cond2 as e)
+					this.addCond(e);
+			}
+			if ((subobj = param("subobj")) != null) {
+				if (! is_array(subobj))
+					throw new MyException(E_SERVER, "subobj should be an array");
+				this.sqlConf["subobj"] = subobj;
+			}
+			*/
+			this.fixUserQuery();
+			this.onQuery();
+
+			bool addDefaultCol = false;
+			// 确保res/gres参数符合安全限定
+			if (gres != null) {
+				this.filterRes(gres, true);
+			}
+			else if (res == null) {
+				res = this.defaultRes;
+				addDefaultCol = true;
 			}
 
+			if (res != null) {
+				this.filterRes(res);
+			}
+			// 设置gres时，不使用default vcols/subobj
+			if (addDefaultCol) {
+				this.addDefaultVCols();
+				if (this.sqlConf.subobj.Count == 0 && this.subobj != null) {
+					foreach (var kv in this.subobj) {
+						var col = kv.Key;
+						var def = kv.Value;
+						if (def.isDefault)
+							this.sqlConf.subobj[col] = def;
+					}
+				}
+			}
+			if (ac == "query")
+			{
+				this.supportEasyui();
+				if (this.sqlConf.orderby != null && this.sqlConf.union == null)
+					this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
+			}
+		}
+
+		protected void validate()
+		{
 			// TODO: check fields in metadata
 			// foreach ($_POST as ($field, $val))
-
-			if (ac == "add" || ac == "set") 
+			if (this.readonlyFields != null)
 			{
-				if (this.readonlyFields != null)
+				foreach (var field in this.readonlyFields)
 				{
-					foreach (var field in this.readonlyFields)
+					if (_POST[field] != null && !(ac == "add" && this.requiredFields.Contains(field)))
 					{
-						if (_POST[field] != null && !(ac == "add" && this.requiredFields.Contains(field)))
+						logit(string.Format("!!! warn: attempt to chang readonly field `{0}`", field));
+						_POST.Remove(field);
+					}
+				}
+			}
+			if (ac == "set") {
+				if (this.readonlyFields2 != null)
+				{
+					foreach (var field in this.readonlyFields2)
+					{
+						if (_POST[field] != null)
 						{
-							logit(string.Format("!!! warn: attempt to chang readonly field `{0}`", field));
+							logit(string.Format("!!! warn: attempt to change readonly field `{0}`", field));
 							_POST.Remove(field);
 						}
 					}
 				}
-				if (ac == "set") {
-					if (this.readonlyFields2 != null)
-					{
-						foreach (var field in this.readonlyFields2)
-						{
-							if (_POST[field] != null)
-							{
-								logit(string.Format("!!! warn: attempt to change readonly field `{0}`", field));
-								_POST.Remove(field);
-							}
-						}
-					}
-				}
-				if (ac == "add") {
-					if (this.requiredFields != null)
-					{
-						foreach (var field in this.requiredFields)
-						{
-							// 					if (! issetval(field, _POST))
-							// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
-							mparam(field, "P"); // validate field and type; refer to field/type format for mparam.
-						}
-					}
-				}
-				else { // for set, the fields can not be set null
-					var arr = new List<string>();
-					if (this.requiredFields != null)
-						arr.AddRange(this.requiredFields);
-					if (this.requiredFields2 != null)
-						arr.AddRange(this.requiredFields2);
-					foreach (var field in arr) {
-						/* 
-						if (is_array(field)) // TODO
-							continue;
-						*/
-						var v = _POST[field];
-						if (v != null && (v == "null" || v == "" || v =="empty" )) {
-							throw new MyException(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
-						}
-					}
-				}
-				this.onValidate();
 			}
-			else if (ac == "get" || ac == "query") {
-				string gres = param("gres", null, null, false) as string;
-				string res = param("res", null, null, false) as string;
-				sqlConf = new SqlConf() {
-					res = new List<string>{},
-					gres = gres,
-					cond = new List<string>{param("cond", null, null, false) as string},
-					join = new List<string>(),
-					orderby = param("orderby", null, null, false) as string,
-					subobj = new Dictionary<string, SubobjDef>(),
-					union = param("union", null, null, false) as string,
-					distinct = (bool)param("distinct/b", false)
-				};
-
-				this.initVColMap();
-
-				/* TODO
-				// support internal param res2/join/cond2
-				if ((res2 = param("res2")) != null) {
-					if (! is_array(res2))
-						throw new MyException(E_SERVER, "res2 should be an array: `res2`");
-					foreach (res2 as e)
-						this.addRes(e);
-				}
-				if ((join=param("join")) != null) {
-					this.addJoin(join);
-				}
-				if ((cond2 = param("cond2")) != null) {
-					if (! is_array(cond2))
-						throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
-					foreach (cond2 as e)
-						this.addCond(e);
-				}
-				if ((subobj = param("subobj")) != null) {
-					if (! is_array(subobj))
-						throw new MyException(E_SERVER, "subobj should be an array");
-					this.sqlConf["subobj"] = subobj;
-				}
-				*/
-				this.fixUserQuery();
-				this.onQuery();
-
-				bool addDefaultCol = false;
-				// 确保res/gres参数符合安全限定
-				if (gres != null) {
-					this.filterRes(gres, true);
-				}
-				else if (res == null) {
-					res = this.defaultRes;
-					addDefaultCol = true;
-				}
-
-				if (res != null) {
-					this.filterRes(res);
-				}
-				// 设置gres时，不使用default vcols/subobj
-				if (addDefaultCol) {
-					this.addDefaultVCols();
-					if (this.sqlConf.subobj.Count == 0 && this.subobj != null) {
-						foreach (var kv in this.subobj) {
-							var col = kv.Key;
-							var def = kv.Value;
-							if (def.isDefault)
-								this.sqlConf.subobj[col] = def;
-						}
-					}
-				}
-				if (ac == "query")
+			if (ac == "add") {
+				if (this.requiredFields != null)
 				{
-					this.supportEasyui();
-					if (this.sqlConf.orderby != null && this.sqlConf.union == null)
-						this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
+					foreach (var field in this.requiredFields)
+					{
+						// 					if (! issetval(field, _POST))
+						// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
+						mparam(field, "P"); // validate field and type; refer to field/type format for mparam.
+					}
 				}
 			}
+			else { // for set, the fields can not be set null
+				var arr = new List<string>();
+				if (this.requiredFields != null)
+					arr.AddRange(this.requiredFields);
+				if (this.requiredFields2 != null)
+					arr.AddRange(this.requiredFields2);
+				foreach (var field in arr) {
+					/* 
+					if (is_array(field)) // TODO
+						continue;
+					*/
+					var v = _POST[field];
+					if (v != null && (v == "null" || v == "" || v =="empty" )) {
+						throw new MyException(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
+					}
+				}
+			}
+			this.onValidate();
+		}
+
+		public void before()
+		{
+			if (this.allowedAc != null && stdAc.Contains(ac) && !this.allowedAc.Contains(ac))
+				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
 		}
 
 		private void handleRow(JsObject rowData)
@@ -433,29 +429,15 @@ namespace JDCloud
 				return;
 			afterIsCalled = true;
 
-			if (ac == "get") {
-				var ret1 = ret as JsObject;
-				this.handleRow(ret1);
-			}
-			else if (ac == "query") {
-				var ls = ret as JsArray;
-				ls.ForEach(rowData => {
-					var row = rowData as JsObject;
-					this.handleRow(row);
-				});
-			}
-			/*
-			else if (ac == "add") {
-			}
-			*/
 			this.onAfter(ref ret);
-
 			if (this.onAfterActions != null)
 				this.onAfterActions();
 		}
 
 		public virtual object api_add()
 		{
+			this.validate();
+
 			var keys = new StringBuilder();
 			var values = new StringBuilder();
 
@@ -498,6 +480,10 @@ namespace JDCloud
 
 		public virtual void api_set()
 		{
+			this.onValidateId();
+			this.id = (int)mparam("id");
+			this.validate();
+
 			var kv = new StringBuilder();
 			foreach (string k in _POST)
 			{
@@ -533,6 +519,9 @@ namespace JDCloud
 
 		public virtual void api_del()
 		{
+			this.onValidateId();
+			this.id = (int)mparam("id");
+
 			string sql = string.Format("DELETE FROM {0} WHERE id={1}", table, id);
 			int cnt = execOne(sql);
 			if (cnt != 1)
@@ -633,6 +622,10 @@ namespace JDCloud
 		// return: JsObject
 		public virtual object api_get()
 		{
+			this.onValidateId();
+			this.id = (int)mparam("id");
+			this.initQuery();
+
 			this.addCond("t0.id=" + this.id, true);
 			StringBuilder sql = genQuerySql();
 			object ret = queryOne(sql.ToString(), true);
@@ -640,6 +633,7 @@ namespace JDCloud
 				throw new MyException(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
 			JsObject ret1 = ret as JsObject;
 			this.handleSubObj(this.id, ret1);
+			this.handleRow(ret1);
 
 			return ret;
 		}
@@ -715,6 +709,8 @@ namespace JDCloud
 
 		public object api_query()
 		{
+			this.initQuery();
+
 			int? pagesz = param("pagesz/i") as int?;
 			int? pagekey = param("pagekey/i") as int?;
 			bool enableTotalCnt = false;
@@ -817,6 +813,10 @@ namespace JDCloud
 
 			// Note: colCnt may be changed in after().
 			int fixedColCnt = objArr.Count()==0? 0: (objArr[0] as JsObject).Count();
+			objArr.ForEach(rowData => {
+				var row = rowData as JsObject;
+				this.handleRow(row);
+			});
 			object reto = objArr;
 			this.after(ref reto);
 
