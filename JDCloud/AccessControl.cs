@@ -29,7 +29,7 @@ namespace JDCloud
 		public List<string> res;
 		public List<string> join;
 		public string orderby;
-		public string gres;
+		public string gres, gcond;
 		public Dictionary<string, SubobjDef> subobj;
 		public bool distinct;
 		public string union;
@@ -82,6 +82,7 @@ namespace JDCloud
 		// for get/query
 		// 注意：sqlConf.res/.cond[0]分别是传入的res/cond参数, sqlConf.orderby是传入的orderby参数, 为空均表示未传值。
 		private SqlConf sqlConf; // {@cond, @res, @join, orderby, @subobj, @gres}
+		private bool isAggregationQuery; // 是聚合查询，如带group by或res中有聚合函数
 
 		// virtual columns
 		private Dictionary<string, Vcol> vcolMap; // elem: vcol => {def, def0, added?, vcolDefIdx?=-1}
@@ -123,6 +124,7 @@ namespace JDCloud
 			sqlConf = new SqlConf() {
 				res = new List<string>{},
 				gres = gres,
+				gcond = param("gcond", null, null, false) as string,
 				cond = new List<string>{param("cond", null, null, false) as string},
 				join = new List<string>(),
 				orderby = param("orderby", null, null, false) as string,
@@ -130,6 +132,7 @@ namespace JDCloud
 				union = param("union", null, null, false) as string,
 				distinct = (bool)param("distinct/b", false)
 			};
+			this.isAggregationQuery = sqlConf.gres != null;
 
 			this.initVColMap();
 
@@ -156,7 +159,6 @@ namespace JDCloud
 				this.sqlConf["subobj"] = subobj;
 			}
 			*/
-			this.fixUserQuery();
 			this.onQuery();
 
 			bool addDefaultCol = false;
@@ -190,6 +192,13 @@ namespace JDCloud
 				if (this.sqlConf.orderby != null && this.sqlConf.union == null)
 					this.sqlConf.orderby = this.filterOrderby(this.sqlConf.orderby);
 			}
+
+			// fixUserQuery
+			String cond = this.sqlConf.cond[0];
+			if (cond != null)
+				this.sqlConf.cond[0] = fixUserQuery(cond);
+			if (this.sqlConf.gcond != null)
+				this.sqlConf.gcond = fixUserQuery(this.sqlConf.gcond);
 		}
 
 		protected void validate()
@@ -272,25 +281,24 @@ namespace JDCloud
 		}
 
 		// for query. "field1"=>"t0.field1"
-		private void fixUserQuery()
+		private String fixUserQuery(String q)
 		{
-			if (this.sqlConf.cond[0] != null) {
-				if (this.sqlConf.cond[0].IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
-					throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
-				}
-				// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
-				this.sqlConf.cond[0] = Regex.Replace(this.sqlConf.cond[0], @"[\w|.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
-					// 't0.0' for col, or 'voldef' for vcol
-					var col = m.Value;
-					if (col.Contains('.'))
-						return col;
-					if (this.vcolMap.ContainsKey(col)) {
-						this.addVCol(col, false, "-");
-						return this.vcolMap[col].def;
-					}
-					return "t0." + col;
-				}, RegexOptions.IgnoreCase);
+			if (q.IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
+				throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
 			}
+			// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
+			var ret = Regex.Replace(q, @"[\w.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
+				// 't0.0' for col, or 'voldef' for vcol
+				var col = m.Value;
+				if (col.Contains('.'))
+					return col;
+				if (this.vcolMap.ContainsKey(col)) {
+					this.addVCol(col, false, "-");
+					return this.vcolMap[col].def;
+				}
+				return "t0." + col;
+			}, RegexOptions.IgnoreCase);
+			return ret;
 		}
 		private void supportEasyui()
 		{
@@ -339,6 +347,7 @@ namespace JDCloud
 						fn = m.Groups[1].Value.ToUpper();
 						if (fn != "COUNT" && fn != "SUM")
 							throw new MyException(E_FORBIDDEN, string.Format("SQL function not allowed: `{0}`", fn));
+						this.isAggregationQuery = true;
 					}
 					else 
 						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
@@ -372,7 +381,7 @@ namespace JDCloud
 						{
 							col1 += " " + alias;
 						}
-						this.addRes(col1, false);
+						this.addRes(col1);
 					}
 				}
 				// mysql可在group-by中直接用alias, 而mssql要用原始定义
@@ -714,7 +723,7 @@ namespace JDCloud
 			int? pagesz = param("pagesz/i") as int?;
 			int? pagekey = param("pagekey/i") as int?;
 			bool enableTotalCnt = false;
-			bool enablePartialQuery = false;
+			bool enablePartialQuery = true;
 
 			if (pagekey == null) {
 				pagekey = param("page/i") as int?;
@@ -730,14 +739,14 @@ namespace JDCloud
 			if (pagesz < 0 || pagesz > maxPageSz)
 				pagesz = maxPageSz;
 
-			if (sqlConf.gres != null) {
+			if (this.isAggregationQuery) {
 				enablePartialQuery = false;
 			}
 
 			string orderSql = sqlConf.orderby;
 
 			// setup cond for partialQuery
-			if (orderSql == null)
+			if (orderSql == null && !this.isAggregationQuery)
 				orderSql = this.filterOrderby(defaultSort);
 
 			if (enableTotalCnt == false && pagekey != null && pagekey == 0)
@@ -747,24 +756,32 @@ namespace JDCloud
 
 			// 如果未指定orderby或只用了id(以后可放宽到唯一性字段), 则可以用partialQuery机制(性能更好更精准), pagekey表示该字段的最后值；否则pagekey表示下一页页码。
 			string partialQueryCond;
-			if (! enablePartialQuery) {
-				if (Regex.IsMatch(orderSql, @"^(t0\.)?id\b")) {
-					enablePartialQuery = true;
-					if (pagekey!= null && pagekey != 0) {
-						if (Regex.IsMatch(orderSql, @"\bid DESC", RegexOptions.IgnoreCase)) {
+			if (enablePartialQuery) {
+				if (Regex.IsMatch(orderSql, @"^(t0\.)?id\b"))
+				{
+					if (pagekey != null && pagekey != 0)
+					{
+						if (Regex.IsMatch(orderSql, @"\bid DESC", RegexOptions.IgnoreCase))
+						{
 							partialQueryCond = "t0.id<" + pagekey;
 						}
-						else {
+						else
+						{
 							partialQueryCond = "t0.id>" + pagekey;
 						}
 						// setup res for partialQuery
-						if (partialQueryCond != null) {
-// 							if (sqlConf["res"][0] != null && !Regex.IsMatch('/\bid\b/',sqlConf["res"][0])) {
-// 								array_unshift(sqlConf["res"], "t0.id");
-// 							}
+						if (partialQueryCond != null)
+						{
+							// 							if (sqlConf["res"][0] != null && !Regex.IsMatch('/\bid\b/',sqlConf["res"][0])) {
+							// 								array_unshift(sqlConf["res"], "t0.id");
+							// 							}
 							sqlConf.cond.Insert(0, partialQueryCond);
 						}
 					}
+				}
+				else
+				{
+					enablePartialQuery = false;
 				}
 			}
 
@@ -778,32 +795,38 @@ namespace JDCloud
 			}
 			if (sqlConf.gres != null) {
 				sql.AppendFormat("\nGROUP BY {0}", sqlConf.gres);
+				if (sqlConf.gcond != null)
+					sql.AppendFormat("\nHAVING {0}", sqlConf.gcond);
 				complexCntSql = true;
 			}
 
 			object totalCnt = null;
-			if (orderSql != null) {
+
+			if (enableTotalCnt) {
+				string cntSql;
+				if (! complexCntSql) {
+					cntSql = "SELECT COUNT(*) FROM " + tblSql;
+					if (condSql.Length > 0)
+						cntSql += "\nWHERE " + condSql;
+				}
+				else {
+					cntSql = "SELECT COUNT(*) FROM (" + sql + ") t0";
+				}
+				totalCnt = queryScalar(cntSql);
+			}
+
+			if (orderSql != null)
 				sql.AppendFormat("\nORDER BY {0}", orderSql);
 
-				if (enableTotalCnt) {
-					string cntSql;
-					if (! complexCntSql) {
-						cntSql = "SELECT COUNT(*) FROM " + tblSql;
-						if (condSql.Length > 0)
-							cntSql += "\nWHERE " + condSql;
-					}
-					else {
-						cntSql = "SELECT COUNT(*) FROM (" + sql + ") t0";
-					}
-					totalCnt = queryScalar(cntSql);
-				}
-
-				if (enablePartialQuery) {
+			if (enablePartialQuery) {
+				sql.AppendFormat("\nLIMIT {0}", pagesz);
+			}
+			else {
+				if (pagekey == null || pagekey == 0) {
+					pagekey = 1;
 					sql.AppendFormat("\nLIMIT {0}", pagesz);
 				}
 				else {
-					if (pagekey == null || pagekey == 0)
-						pagekey = 1;
 					sql.AppendFormat("\nLIMIT {0},{1}", (pagekey-1)*pagesz, pagesz);
 				}
 			}
