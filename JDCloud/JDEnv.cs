@@ -219,7 +219,7 @@ namespace JDCloud
 				if (table == null)
 					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
 
-				int code = clsName.StartsWith("AC_") ? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+				int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN)? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 				throw new MyException(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
 			}
 			Type t = api.GetType();
