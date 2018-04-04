@@ -700,9 +700,9 @@ namespace JDCloud
 			}
 			else if (fmt == "excel") 
 			{
-				header("Content-Type", "application/csv; charset=gb2312");
+				header("Content-Type", "application/csv; charset=gb18030");
 				header("Content-Disposition", "attachment;filename=" + fname + ".csv");
-				table2csv(ret, "gb2312");
+				table2csv(ret, "gb18030");
 				handled = true;
 			}
 			else if (fmt == "txt") 
