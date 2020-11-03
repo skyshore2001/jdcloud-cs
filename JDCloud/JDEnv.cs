@@ -63,7 +63,7 @@ namespace JDCloud
 		}
 	}
 
-	public abstract class JDEnvBase
+	public abstract class JDEnvBase: JDApiBase
 	{
 		public const string ImpClassName = "JDApi.JDEnv";
 
@@ -82,12 +82,11 @@ namespace JDCloud
 		public int debugLevel = 0;
 		public JsArray debugInfo = new JsArray();
 		public string appName, appType;
+		public string baseDir;
 
 		public HttpContext ctx;
-		public NameValueCollection _GET, _POST;
+		public new NameValueCollection _GET, _POST;
 		public object JsonContent;
-
-		public JDApiBase api;
 
 		public static JDEnvBase createInstance()
 		{
@@ -113,26 +112,29 @@ namespace JDCloud
 			return asm_;
 		}
 
+		public JDEnvBase()
+        {
+			this.env = this; // as JDApiBase
+
+			this.isTestMode = int.Parse(getenv("P_TEST_MODE", "0")) != 0;
+			this.debugLevel = int.Parse(getenv("P_DEBUG", "0"));
+			this.baseDir = getenv("baseDir", System.AppDomain.CurrentDomain.BaseDirectory);
+        }
+
 		public void init(HttpContext ctx)
 		{
 			this.ctx = ctx;
-			this.api = new JDApiBase();
-			this.api.env = this;
-
 			this._GET = new NameValueCollection(ctx.Request.QueryString);
 			this._POST = new NameValueCollection(ctx.Request.Form);
 
-			this.isTestMode = int.Parse(ConfigurationManager.AppSettings["P_TEST_MODE"] ?? "0") != 0;
-			this.debugLevel = int.Parse(ConfigurationManager.AppSettings["P_DEBUG"] ?? "0");
-
-			this.appName = api.param("_app", "user", "G") as string;
+			this.appName = param("_app", "user", "G") as string;
 			this.appType = Regex.Replace(this.appName, @"(\d+|-\w+)$", "");
 
 			if (ctx.Request.ContentType != null && ctx.Request.ContentType.IndexOf("/json") > 0)
 			{
 				var rd = new StreamReader(ctx.Request.InputStream);
 				var jsonStr = rd.ReadToEnd();
-				this.JsonContent = this.api.jsonDecode(jsonStr);
+				this.JsonContent = jsonDecode(jsonStr);
 				if (JsonContent is IDictionary<string, object>) 
 				{
 					var dict = (IDictionary<string, object>)JsonContent;
@@ -146,7 +148,7 @@ namespace JDCloud
 
 			if (this.isTestMode)
 			{
-				api.header("X-Daca-Test-Mode", "1");
+				header("X-Daca-Test-Mode", "1");
 			}
 			// TODO: X-Daca-Mock-Mode, X-Daca-Server-Rev
 		}
@@ -163,7 +165,7 @@ namespace JDCloud
 				cnn_ = new DbConn();
 				cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
 				{
-					api.addLog(sql, 9);
+					addLog(sql, 9);
 				});
 				cnn_.Open(connSetting.ConnectionString, connSetting.ProviderName, dbType);
 				cnn_.BeginTransaction();
@@ -219,7 +221,7 @@ namespace JDCloud
 				if (table == null)
 					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
 
-				int code = !this.api.hasPerm(JDApiBase.AUTH_LOGIN)? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
+				int code = !hasPerm(JDApiBase.AUTH_LOGIN)? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
 				throw new MyException(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
 			}
 			Type t = api.GetType();

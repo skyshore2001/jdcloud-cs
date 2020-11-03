@@ -9,6 +9,9 @@ using System.Web;
 using System.Web.Script.Serialization;
 using System.Text.RegularExpressions;
 using System.Collections;
+using System.Configuration;
+using System.Net;
+using System.IO;
 
 /*
 在JDApiBase中实现工具函数。
@@ -414,11 +417,40 @@ namespace JDCloud
 				env.debugInfo.Add(s);
 			}
 		}
-		public void logit(string s, string which = "trace")
+		public string getReqIp()
 		{
-			//TODO
+			if (_SERVER == null)
+				return "NoIP";
+			string ip = _SERVER["REMOTE_ADDR"];
+			// TODO: HTTP_X_FORWARDED_FOR
+			return ip;
+		}
+		public void logit(string s, bool addHeader = true, string which = "trace")
+		{
+			string f = env.baseDir + "/" + which + ".log";
+			if (addHeader) {
+				string remoteAddr = getReqIp();
+				s = string.Format("=== REQ from [{0}] at [{1}] {2}\n", remoteAddr, DateTime.Now.ToString(), s);
+			}
+			else
+			{
+				s += "\n";
+			}
+			try
+            {
+                System.IO.File.AppendAllText(f, s);
+            }
+			catch (Exception ex)
+            {
+				Console.WriteLine(ex.Message);
+				Console.WriteLine(ex.StackTrace);
+            }
 		}
 
+		public static string getenv(string name, string defVal = null)
+		{
+			return ConfigurationManager.AppSettings[name] ?? defVal;
+		}
 		public void checkAuth(int perms)
 		{
 			if (hasPerm(perms))
@@ -472,7 +504,7 @@ namespace JDCloud
 			return ret;
 		}
 
-		public string jsonEncode(object o, bool doFormat = false)
+		public static string jsonEncode(object o, bool doFormat = false)
 		{
 			var ser = new JavaScriptSerializer();
 			var retStr = ser.Serialize(o);
@@ -481,13 +513,13 @@ namespace JDCloud
 			return retStr;
 		}
 
-		public object jsonDecode(string jsonStr)
+		public static object jsonDecode(string jsonStr)
 		{
 			var ser = new JavaScriptSerializer();
 			return ser.DeserializeObject(jsonStr);
 		}
 
-		public string formatJson(string s)
+		public static string formatJson(string s)
 		{
 			int level = 0;
 			return Regex.Replace(s, @"(\{|\[)|(\}|\])|"".*?(?<!\\)""", m =>
@@ -504,6 +536,152 @@ namespace JDCloud
 				}
 				return m.Value;
 			});
+		}
+
+		public static string urlEncode(string s)
+		{
+			return HttpUtility.UrlEncode(s, Encoding.UTF8);
+		}
+		public static string urlEncode(Dictionary<string, object> param)
+		{
+			var ls = new JsArray();
+			foreach (var kv in param)
+			{
+				if (kv.Value == null)
+					continue;
+				ls.Add(kv.Key + "=" + urlEncode(kv.Value.ToString()));
+			}
+			return string.Join("&", ls);
+		}
+		public static string makeUrl(string ac, Dictionary<string, object> param)
+		{
+			if (param == null)
+				return ac;
+			string p = urlEncode(param);
+			return ac.Contains("?") ? ac + "&" + p : ac + "?" + p;
+		}
+
+/**
+%fn httpCall(url, urlParams, postParams, opt)
+
+postParams非空使用POST请求，否则使用GET请求。
+postParams可以是字符串、Dictionary或list等数据结构。默认contentType为"x-www-form-urlencoded"格式。如果postParams为list等结构，则使用"json"格式。
+如果要明确指定格式，可以设置opt.contentType参数，如
+
+	string rv = httpCall(baseUrl, urlParams, postParams, new JsObject({"contentType", "application/json"});
+
+- opt: {contentType, async, headers}
+
+e.g.
+
+	string baseUrl = "http://oliveche.com/echo.php";
+	// 常用asMap或new JsObject
+	var urlParams = new JsObject({"intval", 100}, {"floatval", 12.345}, {"strval", "hello"});
+	var postParams = new JsObject({"postintval", 100}, {"poststrval", "中文"});
+	string rv = httpCall(baseUrl, urlParams, postParams, null);
+
+- opt.async: 当设置为true时，不等服务端响应就关闭连接。(TODO)
+
+*/
+		public class HttpCallOpt
+		{
+			public NameValueCollection headers;
+			public string contentType;
+		}
+		public string httpCall(string url, Dictionary<string, object> getParams, object postParams, HttpCallOpt opt)
+		{
+			string url1 = makeUrl(url, getParams);
+			HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url1);
+			string ct = null;
+			if (opt != null && opt.headers != null)
+			{
+				req.Headers.Add(opt.headers);
+			}
+
+			byte[] postBytes = null;
+			String charset = "UTF-8";
+			if (postParams != null) {
+				string postStr = null;
+				if (opt != null) 
+					ct = (string) opt.contentType;
+				if (ct == null) {
+					if (postParams is IDictionary || postParams is string) {
+						ct = "application/x-www-form-urlencoded";
+					}
+					else {
+						ct = "application/json";
+					}
+				}
+				if (postParams is string)
+				{
+					postStr = (string)postParams;
+				}
+				else if (ct.Contains("/json"))
+				{
+					postStr = jsonEncode(postParams);
+				}
+				else
+				{
+					postStr = urlEncode(postParams as Dictionary<string, object>);
+				}
+				postBytes = System.Text.Encoding.GetEncoding(charset).GetBytes(postStr);
+			}
+			/*
+			boolean isAsync = opt != null && (boolean)opt.get("async");
+			if (isAsync)
+			{
+				String host = oUrl.getHost();
+				int port = oUrl.getPort();
+				if (port == -1)
+					port = oUrl.getDefaultPort();
+
+				try (
+					Socket sock = new Socket(host, port);
+				OutputStream out = sock.getOutputStream()
+						) {
+					StringBuilder sb = new StringBuilder();
+					sb.append(String.format("%s %s HTTP/1.1\r\nHost: %s\r\n", postBytes == null ? "GET" : "POST", url1, host));
+					if (postBytes != null)
+					{
+						sb.append(String.format("Content-Type: %s;charset=%s\r\nContent-Length: %s\r\n", ct, charset, postBytes.length));
+					}
+					sb.append("Connection: Close\r\n\r\n");
+							out.write(sb.toString().getBytes(charset));
+					if (postBytes != null)
+					{
+								out.write(postBytes);
+					}
+				}
+				return null;
+				}
+			*/
+			if (postBytes != null)
+			{
+				req.Method = "POST";
+				req.ContentType = ct + ";charset=" + charset;
+				var wr = req.GetRequestStream();
+				wr.Write(postBytes, 0, postBytes.Length);
+				wr.Close();
+			}
+
+			HttpWebResponse res = (HttpWebResponse)req.GetResponse();
+			StreamReader rd = new StreamReader(res.GetResponseStream(), Encoding.UTF8);
+			string rv = rd.ReadToEnd();
+			rd.Close();
+			res.Close();
+			return rv;
+
+			/*
+		ct = conn.getContentType();
+		String resCharset = "UTF-8";
+		if (ct != null)
+		{
+			Matcher m = regexMatch(ct, "(?i)charset=([\\w-]+)");
+			if (m.find())
+				resCharset = m.group(1);
+			// System.out.println(ct);
+		}
+			*/
 		}
 	}
 

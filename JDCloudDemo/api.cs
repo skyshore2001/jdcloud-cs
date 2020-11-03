@@ -19,7 +19,7 @@ namespace JDApi
 
 		public override string onCreateAC(string table)
 		{
-			if (api.hasPerm(JDApiBase.AUTH_USER))
+			if (hasPerm(JDApiBase.AUTH_USER))
 				return "AC1_" + table;
 			return "AC_" + table;
 		}
