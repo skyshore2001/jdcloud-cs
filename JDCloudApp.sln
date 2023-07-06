@@ -1,7 +1,9 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JDCloudDemo", "JDCloudDemo\JDCloudDemo.csproj", "{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.33328.57
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JDApi", "JDApi\JDApi.csproj", "{9E4C4AF2-8F3A-412E-900D-3CEE75A01496}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JDCloud", "JDCloud\JDCloud.csproj", "{8358A3E2-70E8-4C84-868E-20F5427350BC}"
 EndProject
@@ -22,5 +24,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C255AA30-BE64-4C0E-8948-E69F348A7470}
 	EndGlobalSection
 EndGlobal
