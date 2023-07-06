@@ -102,7 +102,7 @@ namespace JDCloud
 						return env;
 					}
 				}
-				throw new MyException(JDApiBase.E_SERVER, "No class " + ImpClassName);
+				jdRet(JDApiBase.E_SERVER, "No class " + ImpClassName);
 			}
 			return asm_.CreateInstance(ImpClassName) as JDEnvBase;
 		}
@@ -160,7 +160,7 @@ namespace JDCloud
 				var dbType = ConfigurationManager.AppSettings["P_DBTYPE"];
 				var connSetting = ConfigurationManager.ConnectionStrings["default"];
 				if (connSetting == null)
-					throw new MyException(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
+					jdRet(JDApiBase.E_SERVER, "No db connectionString defined in web.config");
 
 				cnn_ = new DbConn();
 				cnn_.onExecSql += new DbConn.OnExecSql(delegate(string sql)
@@ -219,15 +219,15 @@ namespace JDCloud
 			if (api == null)
 			{
 				if (table == null)
-					throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
+					jdRet(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no Global)");
 
 				int code = !hasPerm(JDApiBase.AUTH_LOGIN)? JDApiBase.E_NOAUTH : JDApiBase.E_FORBIDDEN;
-				throw new MyException(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
+				jdRet(code, string.Format("Operation is not allowed for current user on object `{0}`", table));
 			}
 			Type t = api.GetType();
 			MethodInfo mi = t.GetMethod(methodName);
 			if (mi == null)
-				throw new MyException(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
+				jdRet(JDApiBase.E_PARAM, "bad ac=`" + ac + "` (no method)");
 			api.env = this;
 
 			NameValueCollection[] bak = null;
@@ -273,7 +273,7 @@ namespace JDCloud
 			}
 			else
 			{
-				throw new MyException(JDApiBase.E_SERVER, "misconfigured ac=`" + ac + "`");
+				jdRet(JDApiBase.E_SERVER, "misconfigured ac=`" + ac + "`");
 			}
 			if (ret == null)
 				ret = "OK";

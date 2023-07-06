@@ -55,6 +55,21 @@ namespace JDCloud
 			get { return env.ctx.Session;}
 		}
 
+		protected static JDApiBase inst;
+		public static JDApiBase instance()
+		{
+			if (inst == null)
+				inst = new JDApiBase();
+			return inst;
+		}
+
+		public static void jdRet(int code = 0, object data = null, string msg = null)
+		{
+			if (code != 0)
+				throw new MyException(code, data, msg);
+			throw new DirectReturn(data);
+		}
+
 		public static readonly Dictionary<int, string> ERRINFO = new Dictionary<int, string>(){
 			{ E_AUTHFAIL, "认证失败" },
 			{ E_PARAM, "参数不正确" },
@@ -137,7 +152,7 @@ namespace JDCloud
 			{
 				int tlen = t.Length;
 				if (tlen == 0)
-					throw new MyException(E_SERVER, string.Format("bad type spec: `{0}`", type));
+					jdRet(E_SERVER, string.Format("bad type spec: `{0}`", type));
 				bool optional = false;
 				string t1= t;
 				if (t[tlen-1] == '?')
@@ -171,28 +186,28 @@ namespace JDCloud
 							row1.Add(null);
 							continue;
 						}
-						throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require col: `{2}`[{3}]", name, type, row0, i));
+						jdRet(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require col: `{2}`[{3}]", name, type, row0, i));
 					}
 					string v = htmlEscape(e);
 					if (t.type == "i") 
 					{
 						int ival;
 						if (! int.TryParse(v, out ival))
-							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require integer col: `{2}`[{3}]=`{4}`.", name, type, row0, ival, v));
+							jdRet(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require integer col: `{2}`[{3}]=`{4}`.", name, type, row0, ival, v));
 						row1.Add(ival);
 					}
 					else if (t.type == "n") 
 					{
 						decimal n;
 						if (! decimal.TryParse(v, out n))
-							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require numberic col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
+							jdRet(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require numberic col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
 						row1.Add(n);
 					}
 					else if (t.type == "b")
 					{
 						bool b;
 						if (!tryParseBool(v, out b))
-							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require boolean col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
+							jdRet(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require boolean col: `{2}`[{3}]=`{4}`.", name, type, row0, i, v));
 						row1.Add(b);
 					}
 					else if (t.type == "s")
@@ -202,17 +217,17 @@ namespace JDCloud
 					else if (t.type == "dt" || t.type == "tm") {
 						DateTime dt;
 						if (! DateTime.TryParse(v, out dt))
-							throw new MyException(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require datetime col: `{2}`[{3}]=`{4}`.", name, t.type, row0, i, v));
+							jdRet(E_PARAM, string.Format("Bad Request - param `{0}`: list({1}). require datetime col: `{2}`[{3}]=`{4}`.", name, t.type, row0, i, v));
 						row1.Add(dt);
 					}
 					else {
-						throw new MyException(E_SERVER, string.Format("unknown elem type `{0}` for param `{1}`: list({2})", t.type, name, v));
+						jdRet(E_SERVER, string.Format("unknown elem type `{0}` for param `{1}`: list({2})", t.type, name, v));
 					}
 				}
 				ret.Add(row1);
 			}
 			if (ret.Count == 0)
-				throw new MyException(E_PARAM, "Bad Request - list param `{0}` is empty.", name);
+				jdRet(E_PARAM, "Bad Request - list param `{0}` is empty.", name);
 			return ret;
 		}
 
@@ -250,21 +265,21 @@ namespace JDCloud
 				{
 					int i;
 					if (!int.TryParse(val, out i))
-						throw new MyException(E_PARAM, string.Format("Bad Request - integer param `{0}`=`{1}`.", name, val));
+						jdRet(E_PARAM, string.Format("Bad Request - integer param `{0}`=`{1}`.", name, val));
 					ret = i;
 				}
 				else if (type == "n")
 				{
 					double n;
 					if (!double.TryParse(val, out n))
-						throw new MyException(E_PARAM, string.Format("Bad Request - numeric param `{0}`=`{1}`.", name, val));
+						jdRet(E_PARAM, string.Format("Bad Request - numeric param `{0}`=`{1}`.", name, val));
 					ret = n;
 				}
 				else if (type == "b")
 				{
 					bool b;
 					if (!tryParseBool(val, out b))
-						throw new MyException(E_PARAM, string.Format("Bad Request - bool param `{0}`=`{1}`.", name, val));
+						jdRet(E_PARAM, string.Format("Bad Request - bool param `{0}`=`{1}`.", name, val));
 					ret = b;
 				}
 				else if (type == "i+")
@@ -274,29 +289,29 @@ namespace JDCloud
 					{
 						int i;
 						if (!int.TryParse(e, out i))
-							throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` contains `{1}`.", name, e));
+							jdRet(E_PARAM, string.Format("Bad Request - int array param `{0}` contains `{1}`.", name, e));
 						arr.Add(i);
 					}
 					if (arr.Count == 0)
-						throw new MyException(E_PARAM, string.Format("Bad Request - int array param `{0}` is empty.", name));
+						jdRet(E_PARAM, string.Format("Bad Request - int array param `{0}` is empty.", name));
 					ret = arr;
 				}
 				else if (type == "dt" || type == "tm")
 				{
 					DateTime dt;
 					if (!DateTime.TryParse(val, out dt))
-						throw new MyException(E_PARAM, string.Format("Bad Request - invalid datetime param `{0}`=`{1}`.", name, val));
+						jdRet(E_PARAM, string.Format("Bad Request - invalid datetime param `{0}`=`{1}`.", name, val));
 					ret = dt;
 				}
 				/*
 				else if (type == "js" || type == "tbl") {
 					ret1 = json_decode(ret, true);
 					if (ret1 == null)
-						throw new MyException(E_PARAM, "Bad Request - invalid json param `name`=`ret`.");
+						jdRet(E_PARAM, "Bad Request - invalid json param `name`=`ret`.");
 					if (type == "tbl") {
 						ret1 = table2objarr(ret1);
 						if (ret1 == false)
-							throw new MyException(E_PARAM, "Bad Request - invalid table param `name`=`ret`.");
+							jdRet(E_PARAM, "Bad Request - invalid table param `name`=`ret`.");
 					}
 					ret = ret1;
 				}
@@ -307,7 +322,7 @@ namespace JDCloud
 				}
 				else
 				{
-					throw new MyException(E_SERVER, string.Format("unknown type `{0}` for param `{1}`", type, name));
+					jdRet(E_SERVER, string.Format("unknown type `{0}` for param `{1}`", type, name));
 				}
 			}
 			return ret;
@@ -317,7 +332,7 @@ namespace JDCloud
 		{
 			object val = param(name, null, coll, htmlEscape);
 			if (val == null)
-				throw new MyException(E_PARAM, "require param `" + name + "`");
+				jdRet(E_PARAM, "require param `" + name + "`");
 			return val;
 		}
 
@@ -456,8 +471,8 @@ namespace JDCloud
 			if (hasPerm(perms))
 				return;
 			if (hasPerm(AUTH_LOGIN))
-				throw new MyException(E_FORBIDDEN, "permission denied.");
-			throw new MyException(E_NOAUTH, "need login");
+				jdRet(E_FORBIDDEN, "permission denied.");
+			jdRet(E_NOAUTH, "need login");
 		}
 
 		int perms_;
@@ -702,8 +717,9 @@ e.g.
 			}
 			catch (Exception ex)
 			{
-				throw new MyException(E_SERVER, null, "httpCall fails: " + ex.Message);
+				jdRet(E_SERVER, null, "httpCall fails: " + ex.Message);
 			}
+			return null;
 
 			/*
 		ct = conn.getContentType();

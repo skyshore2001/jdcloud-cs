@@ -65,7 +65,7 @@ namespace JDApi
 				ret = execOne(sql, getNewId);
 			}
 			else
-				throw new MyException(E_SERVER, "not implemented");
+				jdRet(E_SERVER, "not implemented");
 			return ret;
 		}
 
@@ -85,7 +85,7 @@ namespace JDApi
 			var sql = string.Format("SELECT id FROM User WHERE uname={0}", Q(uname));
 			var id = queryOne(sql);
 			if (id.Equals(false))
-				throw new MyException(E_AUTHFAIL, "bad uname or pwd");
+				jdRet(E_AUTHFAIL, "bad uname or pwd");
 			_SESSION["uid"] = id;
 			return new JsObject() {
 				{"id", id}
@@ -201,7 +201,7 @@ WHERE userId=" + this.uid + @" ORDER BY id DESC LIMIT 3) t
 				var id = mparam("id");
 				var rv = queryOne("SELECT id FROM ApiLog WHERE id=" + id + " AND userId=" + this.uid);
 				if (!rv.Equals(false))
-					throw new MyException(E_FORBIDDEN, "not your log");
+					jdRet(E_FORBIDDEN, "not your log");
 			}
 		}
 

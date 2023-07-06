@@ -140,7 +140,7 @@ namespace JDCloud
 			// support internal param res2/join/cond2
 			if ((res2 = param("res2")) != null) {
 				if (! is_array(res2))
-					throw new MyException(E_SERVER, "res2 should be an array: `res2`");
+					jdRet(E_SERVER, "res2 should be an array: `res2`");
 				foreach (res2 as e)
 					this.addRes(e);
 			}
@@ -149,13 +149,13 @@ namespace JDCloud
 			}
 			if ((cond2 = param("cond2")) != null) {
 				if (! is_array(cond2))
-					throw new MyException(E_SERVER, "cond2 should be an array: `cond2`");
+					jdRet(E_SERVER, "cond2 should be an array: `cond2`");
 				foreach (cond2 as e)
 					this.addCond(e);
 			}
 			if ((subobj = param("subobj")) != null) {
 				if (! is_array(subobj))
-					throw new MyException(E_SERVER, "subobj should be an array");
+					jdRet(E_SERVER, "subobj should be an array");
 				this.sqlConf["subobj"] = subobj;
 			}
 			*/
@@ -235,7 +235,7 @@ namespace JDCloud
 					foreach (var field in this.requiredFields)
 					{
 						// 					if (! issetval(field, _POST))
-						// 						throw new MyException(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
+						// 						jdRet(E_PARAM, "missing field `{field}`", "参数`{field}`未填写");
 						mparam(field, "P"); // validate field and type; refer to field/type format for mparam.
 					}
 				}
@@ -253,7 +253,7 @@ namespace JDCloud
 					*/
 					var v = _POST[field];
 					if (v != null && (v == "null" || v == "" || v =="empty" )) {
-						throw new MyException(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
+						jdRet(E_PARAM, string.Format("{0}.set: cannot set field `field` to null.", field));
 					}
 				}
 			}
@@ -263,7 +263,7 @@ namespace JDCloud
 		public void before()
 		{
 			if (this.allowedAc != null && stdAc.Contains(ac) && !this.allowedAc.Contains(ac))
-				throw new MyException(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
+				jdRet(E_FORBIDDEN, string.Format("Operation `{0}` is not allowed on object `{1}`", ac, table));
 		}
 
 		private void handleRow(JsObject rowData)
@@ -284,7 +284,7 @@ namespace JDCloud
 		private String fixUserQuery(String q)
 		{
 			if (q.IndexOf("select", StringComparison.OrdinalIgnoreCase) >= 0) {
-				throw new MyException(E_FORBIDDEN, "forbidden SELECT in param cond");
+				jdRet(E_FORBIDDEN, "forbidden SELECT in param cond");
 			}
 			// "aa = 100 and t1.bb>30 and cc IS null" . "t0.aa = 100 and t1.bb>30 and t0.cc IS null" 
 			var ret = Regex.Replace(q, @"[\w.]+(?=(\s*[=><]|(\s+(IS|LIKE))))", m => {
@@ -346,11 +346,11 @@ namespace JDCloud
 					{
 						fn = m.Groups[1].Value.ToUpper();
 						if (fn != "COUNT" && fn != "SUM")
-							throw new MyException(E_FORBIDDEN, string.Format("SQL function not allowed: `{0}`", fn));
+							jdRet(E_FORBIDDEN, string.Format("SQL function not allowed: `{0}`", fn));
 						this.isAggregationQuery = true;
 					}
 					else 
-						throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
+						jdRet(E_PARAM, string.Format("bad property `{0}`", col));
 				}
 				else
 				{
@@ -366,7 +366,7 @@ namespace JDCloud
 				}
 
 	// 			if (! ctype_alnum(col))
-	// 				throw new MyException(E_PARAM, "bad property `col`");
+	// 				jdRet(E_PARAM, "bad property `col`");
 				if (this.addVCol(col, true, alias) == false)
 				{
 					if (!gres && this.subobj != null && this.subobj.ContainsKey(col))
@@ -403,7 +403,7 @@ namespace JDCloud
 				var col = col0.Trim();
 				Match m;
 				if (! (m=Regex.Match(col, @"^(\w+\.)?(\S+)(\s+(asc|desc))?$", RegexOptions.IgnoreCase)).Success)
-					throw new MyException(E_PARAM, string.Format("bad property `{0}`", col));
+					jdRet(E_PARAM, string.Format("bad property `{0}`", col));
 				if (m.Groups[1].Value.Length > 0) // e.g. "t0.id desc"
 				{
 					colArr.Add(col);
@@ -458,7 +458,7 @@ namespace JDCloud
 				if (val.Length == 0)
 					continue;
 				if (!Regex.IsMatch(k, @"^\w+$"))
-					throw new MyException(E_PARAM, string.Format("bad property `{0}`" + k));
+					jdRet(E_PARAM, string.Format("bad property `{0}`" + k));
 				if (keys.Length > 0)
 				{
 					keys.Append(", ");
@@ -470,7 +470,7 @@ namespace JDCloud
 			}
 			
 			if (keys.Length == 0)
-				throw new MyException(E_PARAM, "no field found to be added");
+				jdRet(E_PARAM, "no field found to be added");
 
 			string sql = string.Format("INSERT INTO {0} ({1}) VALUES ({2})", table, keys, values);
 			this.id = execOne(sql, true);
@@ -503,7 +503,7 @@ namespace JDCloud
 					//continue;
 				// TODO: check meta
 				if (!Regex.IsMatch(k, @"^\w+$"))
-					throw new MyException(E_PARAM, string.Format("bad property `{0}`" + k));
+					jdRet(E_PARAM, string.Format("bad property `{0}`" + k));
 
 				if (kv.Length > 0)
 					kv.Append(", ");
@@ -534,7 +534,7 @@ namespace JDCloud
 			string sql = string.Format("DELETE FROM {0} WHERE id={1}", table, id);
 			int cnt = execOne(sql);
 			if (cnt != 1)
-				throw new MyException(E_PARAM, string.Format("not found id={0}", id));
+				jdRet(E_PARAM, string.Format("not found id={0}", id));
 		}
 
 		protected StringBuilder genQuerySql()
@@ -639,7 +639,7 @@ namespace JDCloud
 			StringBuilder sql = genQuerySql();
 			object ret = queryOne(sql.ToString(), true);
 			if (ret.Equals(false))
-				throw new MyException(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
+				jdRet(E_PARAM, string.Format("not found `{0}.id`=`{1}`", table, id));
 			JsObject ret1 = ret as JsObject;
 			this.handleSubObj(this.id, ret1);
 			this.handleRow(ret1);
@@ -944,7 +944,7 @@ namespace JDCloud
 		private void setColFromRes(string res, bool added, int vcolDefIdx=-1)
 		{
 			Match m = null;
-			string colName, def;
+			string colName = null, def = null;
 			if ( (m=Regex.Match(res, @"^(\w+)\.(\w+)$")).Success) {
 				colName = m.Groups[2].Value;
 				def = res;
@@ -954,11 +954,11 @@ namespace JDCloud
 				def = m.Groups[1].Value;
 			}
 			else
-				throw new MyException(E_PARAM, string.Format("bad res definition: `{0}`", res));
+				jdRet(E_PARAM, string.Format("bad res definition: `{0}`", res));
 
 			if (this.vcolMap.ContainsKey(colName)) {
 				if (added && this.vcolMap[colName].added)
-					throw new MyException(E_SERVER, string.Format("res for col `{0}` has added: `{1}`", colName, res));
+					jdRet(E_SERVER, string.Format("res for col `{0}` has added: `{1}`", colName, res));
 				this.vcolMap[ colName ].added = true;
 			}
 			else {
@@ -1002,7 +1002,7 @@ namespace JDCloud
 		{
 			if (! this.vcolMap.ContainsKey(col)) {
 				if (!ignoreError)
-					throw new MyException(E_SERVER, string.Format("unknown vcol `{0}`", col));
+					jdRet(E_SERVER, string.Format("unknown vcol `{0}`", col));
 				return false;
 			}
 			if (this.vcolMap[col].added)

@@ -36,7 +36,7 @@ namespace JDCloud
 				Match m = Regex.Match(path, @"api/+([\w|.]+)$");
 				//Match m = Regex.Match(path, @"api/(\w+)");
 				if (!m.Success)
-					throw new MyException(E_PARAM, "bad ac");
+					jdRet(E_PARAM, "bad ac");
 
 				// 测试模式允许跨域
 				string origin;
@@ -47,7 +47,7 @@ namespace JDCloud
 					context.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
 				}
 				if (context.Request.HttpMethod == "OPTIONS")
-					throw new DirectReturn();
+					jdRet();
 
 				string ac = m.Groups[1].Value;
 				try
