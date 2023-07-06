@@ -437,14 +437,14 @@ namespace JDCloud
 				s += "\n";
 			}
 			try
-            {
-                System.IO.File.AppendAllText(f, s);
-            }
+			{
+				System.IO.File.AppendAllText(f, s);
+			}
 			catch (Exception ex)
-            {
+			{
 				Console.WriteLine(ex.Message);
 				Console.WriteLine(ex.StackTrace);
-            }
+			}
 		}
 
 		public static string getenv(string name, string defVal = null)
@@ -587,15 +587,25 @@ e.g.
 		{
 			public NameValueCollection headers;
 			public string contentType;
+			public bool useJson;
+			public string method;
+
+			public bool isBinary;
+			public byte[] bytes;
 		}
-		public string httpCall(string url, Dictionary<string, object> getParams, object postParams, HttpCallOpt opt)
+		public string httpCall(string url, Dictionary<string, object> getParams = null, object postParams = null, HttpCallOpt opt = null)
 		{
 			string url1 = makeUrl(url, getParams);
 			HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url1);
 			string ct = null;
-			if (opt != null && opt.headers != null)
+			bool useJson = false;
+			if (opt != null)
 			{
-				req.Headers.Add(opt.headers);
+				if (opt.headers != null)
+					req.Headers.Add(opt.headers);
+				if (opt.method != null)
+					req.Method = opt.method;
+				useJson = opt.useJson;
 			}
 
 			byte[] postBytes = null;
@@ -605,18 +615,18 @@ e.g.
 				if (opt != null) 
 					ct = (string) opt.contentType;
 				if (ct == null) {
-					if (postParams is IDictionary || postParams is string) {
-						ct = "application/x-www-form-urlencoded";
+					if (useJson) {
+						ct = "application/json";
 					}
 					else {
-						ct = "application/json";
+						ct = "application/x-www-form-urlencoded";
 					}
 				}
 				if (postParams is string)
 				{
 					postStr = (string)postParams;
 				}
-				else if (ct.Contains("/json"))
+				else if (useJson)
 				{
 					postStr = jsonEncode(postParams);
 				}
@@ -657,19 +667,43 @@ e.g.
 			*/
 			if (postBytes != null)
 			{
-				req.Method = "POST";
+				if (req.Method == null)
+					req.Method = "POST";
 				req.ContentType = ct + ";charset=" + charset;
 				var wr = req.GetRequestStream();
 				wr.Write(postBytes, 0, postBytes.Length);
 				wr.Close();
 			}
 
-			HttpWebResponse res = (HttpWebResponse)req.GetResponse();
-			StreamReader rd = new StreamReader(res.GetResponseStream(), Encoding.UTF8);
-			string rv = rd.ReadToEnd();
-			rd.Close();
-			res.Close();
-			return rv;
+			try
+			{
+				HttpWebResponse res = (HttpWebResponse)req.GetResponse();
+				if (opt != null && opt.isBinary)
+				{
+					Stream st = res.GetResponseStream();
+					int totalLen = (int)res.ContentLength;
+					opt.bytes = new byte[totalLen];
+					// NOTE: 一次可能读不完
+					int sz = 0;
+					while (true)
+					{
+						int cnt = st.Read(opt.bytes, sz, totalLen - sz);
+						sz += cnt;
+						if (cnt == 0 || sz >= totalLen)
+							break;
+					}
+					return null;
+				}
+				StreamReader rd = new StreamReader(res.GetResponseStream(), Encoding.UTF8);
+				string rv = rd.ReadToEnd();
+				rd.Close();
+				res.Close();
+				return rv;
+			}
+			catch (Exception ex)
+			{
+				throw new MyException(E_SERVER, null, "httpCall fails: " + ex.Message);
+			}
 
 			/*
 		ct = conn.getContentType();
